@@ -1,13 +1,12 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
-import { UpdateCitaDto } from './dto/ update-cita.dto';
+import { UpdateCitaDto } from './dto/update-cita.dto';
 
 @Injectable()
 export class CitasService {
   constructor(private prisma: PrismaService) {}
 
-  // CREATE
   async create(dto: CreateCitaDto) {
     const mascota = await this.prisma.mascotas.findUnique({
       where: { id_mascota: dto.id_mascota },
@@ -36,7 +35,6 @@ export class CitasService {
     });
   }
 
-  // GET ALL
   findAll() {
     return this.prisma.citas.findMany({
       include: {
@@ -46,27 +44,46 @@ export class CitasService {
     });
   }
 
-  // GET ONE
-  findOne(id: number) {
-    return this.prisma.citas.findUnique({
+  async findOne(id: number) {
+    const cita = await this.prisma.citas.findUnique({
       where: { id_cita: id },
       include: {
         mascotas: true,
         usuarios: true,
       },
     });
+
+    if (!cita) {
+      throw new NotFoundException('Cita no encontrada');
+    }
+
+    return cita;
   }
 
-  // UPDATE
-  update(id: number, dto: UpdateCitaDto) {
+  async update(id: number, dto: UpdateCitaDto) {
+    const cita = await this.prisma.citas.findUnique({
+      where: { id_cita: id },
+    });
+
+    if (!cita) {
+      throw new NotFoundException('Cita no existe');
+    }
+
     return this.prisma.citas.update({
       where: { id_cita: id },
       data: dto,
     });
   }
 
-  // DELETE
-  remove(id: number) {
+  async remove(id: number) {
+    const cita = await this.prisma.citas.findUnique({
+      where: { id_cita: id },
+    });
+
+    if (!cita) {
+      throw new NotFoundException('Cita no existe');
+    }
+
     return this.prisma.citas.delete({
       where: { id_cita: id },
     });

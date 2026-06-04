@@ -7,17 +7,20 @@ datasource db {
 }
 
 model citas {
-  id_cita    Int       @id @default(autoincrement())
-  fecha      DateTime? @db.Date
-  hora       DateTime? @db.Time(6)
-  estado     String?   @default("pendiente")
-
-  id_mascota Int?
-  id_usuario Int?
-
-  mascotas   mascotas? @relation(fields: [id_mascota], references: [id_mascota])
-  usuarios   usuarios? @relation(fields: [id_usuario], references: [id_usuario])
+  id_cita        Int            @id @default(autoincrement())
+  fecha          DateTime?      @db.Date
+  hora           String?        @db.VarChar(10)
+  estado         String?        @default("pendiente")
+  servicio       String?        @db.VarChar(100)
+  notas          String?
+  id_mascota     Int?
+  id_usuario     Int?
+  id_veterinario Int?
+  mascotas       mascotas?      @relation(fields: [id_mascota], references: [id_mascota])
+  usuarios       usuarios?      @relation(fields: [id_usuario], references: [id_usuario])
+  veterinarios   veterinarios?  @relation(fields: [id_veterinario], references: [id_veterinario])
 }
+
 model consultas {
   id_consulta        Int                 @id @default(autoincrement())
   fecha              DateTime?           @default(now()) @db.Timestamp(6)
@@ -77,11 +80,14 @@ model mascotas {
   raza               String?             @db.VarChar(50)
   edad               Int?
   peso               Decimal?            @db.Decimal(5, 2)
+  sexo               String?             @db.VarChar(20)
+  fecha_nacimiento   String?             @db.VarChar(10)
+  foto               String?
   id_propietario     Int?
   citas              citas[]
   facturas           facturas[]
   historias_clinicas historias_clinicas?
-  propietario propietarios? @relation(fields: [id_propietario], references: [id_propietario])
+  propietario        propietarios?       @relation(fields: [id_propietario], references: [id_propietario])
   recordatorios      recordatorios[]
   registro_vacunas   registro_vacunas[]
 }
@@ -112,8 +118,12 @@ model propietarios {
   telefono       String?    @db.VarChar(20)
   direccion      String?
   email          String?    @db.VarChar(100)
+  documento      String?    @db.VarChar(20)
+  estado         String?    @default("activo") @db.VarChar(20)
+  id_usuario     Int?       @unique
   facturas       facturas[]
   mascotas       mascotas[]
+  usuarios       usuarios?  @relation(fields: [id_usuario], references: [id_usuario])
 }
 
 model recordatorios {
@@ -123,6 +133,12 @@ model recordatorios {
   estado             String?   @default("pendiente") @db.VarChar(20)
   id_mascota         Int?
   mascotas           mascotas? @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model recepcionistas {
+  id_recepcionista Int      @id @default(autoincrement())
+  id_usuario       Int      @unique
+  usuarios         usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model registro_vacunas {
@@ -149,14 +165,17 @@ model servicios {
 }
 
 model usuarios {
-  id_usuario Int         @id @default(autoincrement())
-  nombre     String?     @db.VarChar(100)
-  email      String      @unique @db.VarChar(100)
-  password   String      @db.VarChar(255)
-  id_rol     Int?
-  citas      citas[]
-  consultas  consultas[]
-  roles      roles?      @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
+  id_usuario     Int             @id @default(autoincrement())
+  nombre         String?         @db.VarChar(100)
+  email          String          @unique @db.VarChar(100)
+  password       String          @db.VarChar(255)
+  id_rol         Int?
+  citas          citas[]
+  consultas      consultas[]
+  propietarios   propietarios?
+  veterinarios   veterinarios?
+  recepcionistas recepcionistas?
+  roles          roles?          @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model vacunas {
@@ -164,4 +183,13 @@ model vacunas {
   nombre           String?            @db.VarChar(100)
   frecuencia_dias  Int?
   registro_vacunas registro_vacunas[]
+}
+
+model veterinarios {
+  id_veterinario Int      @id @default(autoincrement())
+  especialidad   String?  @db.VarChar(100)
+  licencia       String?  @db.VarChar(50)
+  id_usuario     Int      @unique
+  citas          citas[]
+  usuarios       usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }

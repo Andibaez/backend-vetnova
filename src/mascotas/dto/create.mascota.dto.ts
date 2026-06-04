@@ -5,14 +5,32 @@ export class CreateMascotaDto {
   @IsNotEmpty()
   nombre: string;
 
+  @IsOptional()
   @IsString()
-  especie: string;
+  especie?: string;
 
+  @IsOptional()
   @IsString()
-  raza: string;
+  raza?: string;
 
+  @IsOptional()
   @IsInt()
-  edad: number;
+  edad?: number;
+
+  @IsOptional()
+  peso?: number;
+
+  @IsOptional()
+  @IsString()
+  sexo?: string;
+
+  @IsOptional()
+  @IsString()
+  fecha_nacimiento?: string;
+
+  @IsOptional()
+  @IsString()
+  foto?: string;
 
   @IsOptional()
   @IsInt()

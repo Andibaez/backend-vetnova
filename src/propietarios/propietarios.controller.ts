@@ -1,37 +1,50 @@
-import { Controller, Get, Post, Body, Param, Put, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, ParseIntPipe } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PropietariosService } from './propietarios.service';
 import { CreatePropietarioDto } from './dto/create-propietario.dto';
 import { UpdatePropietarioDto } from './dto/update-propietario.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ROLES } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
 
+@ApiBearerAuth()
+@ApiTags('propietarios')
 @Controller('propietarios')
 export class PropietariosController {
   constructor(private readonly propietariosService: PropietariosService) {}
 
+  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA)
   @Post()
-  create(@Body() createPropietarioDto: CreatePropietarioDto) {
-    return this.propietariosService.create(createPropietarioDto);
+  create(@Body() dto: CreatePropietarioDto) {
+    return this.propietariosService.create(dto);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Get()
-  findAll() {
-    return this.propietariosService.findAll();
+  findAll(@CurrentUser() user: JwtPayload) {
+    return this.propietariosService.findAll(user);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.propietariosService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.propietariosService.findOne(id, user);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Put(':id')
   update(
-    @Param('id') id: string,
-    @Body() updatePropietarioDto: UpdatePropietarioDto,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdatePropietarioDto,
+    @CurrentUser() user: JwtPayload,
   ) {
-    return this.propietariosService.updatePropietario(+id, updatePropietarioDto);
+    return this.propietariosService.updatePropietario(id, dto, user);
   }
 
+  @Roles(ROLES.ADMIN)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.propietariosService.deletePropietario(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.propietariosService.deletePropietario(id);
   }
 }

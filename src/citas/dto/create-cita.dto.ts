@@ -11,9 +11,22 @@ export class CreateCitaDto {
   @IsString()
   estado?: string;
 
+  @IsOptional()
+  @IsString()
+  servicio?: string;
+
+  @IsOptional()
+  @IsString()
+  notas?: string;
+
   @IsInt()
   id_mascota: number;
 
+  @IsOptional()
   @IsInt()
-  id_usuario: number;
+  id_usuario?: number;
+
+  @IsOptional()
+  @IsInt()
+  id_veterinario?: number;
 }

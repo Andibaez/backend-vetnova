@@ -1,34 +1,50 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CitasService } from './citas.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
 import { UpdateCitaDto } from './dto/update-cita.dto';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ROLES } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
 
+@ApiBearerAuth()
+@ApiTags('citas')
 @Controller('citas')
 export class CitasController {
   constructor(private readonly citasService: CitasService) {}
 
+  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Post()
-  create(@Body() createCitaDto: CreateCitaDto) {
-    return this.citasService.create(createCitaDto);
+  create(@Body() dto: CreateCitaDto, @CurrentUser() user: JwtPayload) {
+    return this.citasService.create(dto, user);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Get()
-  findAll() {
-    return this.citasService.findAll();
+  findAll(@CurrentUser() user: JwtPayload) {
+    return this.citasService.findAll(user);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.citasService.findOne(+id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.citasService.findOne(id, user);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA)
   @Put(':id')
-  update(@Param('id') id: string, @Body() updateCitaDto: UpdateCitaDto) {
-    return this.citasService.update(+id, updateCitaDto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateCitaDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.citasService.update(id, dto, user);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA)
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.citasService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.citasService.remove(id);
   }
 }

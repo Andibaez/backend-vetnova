@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEmail, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreatePropietarioDto {
   @IsString()
@@ -18,4 +18,18 @@ export class CreatePropietarioDto {
   @IsEmail()
   @MaxLength(100)
   email?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  documento?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  estado?: string;
+
+  @IsOptional()
+  @IsInt()
+  id_usuario?: number;
 }

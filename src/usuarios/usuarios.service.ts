@@ -2,6 +2,8 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -54,7 +56,14 @@ export class UsuariosService {
     const data: Record<string, unknown> = {};
     if (dto.nombre) data.nombre = dto.nombre.trim();
     if (dto.email) data.email = dto.email.trim().toLowerCase();
-    if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
+    if (dto.password) {
+      if (!dto.currentPassword) {
+        throw new BadRequestException('Debes proporcionar tu contraseña actual para cambiarla.');
+      }
+      const valid = await bcrypt.compare(dto.currentPassword, existing.password);
+      if (!valid) throw new ForbiddenException('La contraseña actual es incorrecta.');
+      data.password = await bcrypt.hash(dto.password, 10);
+    }
     if (dto.rol) {
       const rol = await this.findOrCreateRole(dto.rol);
       data.id_rol = rol.id_rol;

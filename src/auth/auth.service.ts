@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
@@ -20,10 +22,15 @@ interface ResetTokenPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly googleClient: OAuth2Client;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-  ) {}
+    private readonly config: ConfigService,
+  ) {
+    this.googleClient = new OAuth2Client(config.get('GOOGLE_CLIENT_ID'));
+  }
 
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
@@ -83,7 +90,20 @@ export class AuthService {
   }
 
   async googleAuth(dto: GoogleAuthDto) {
-    const normalizedEmail = dto.email.trim().toLowerCase();
+    let ticket;
+    try {
+      ticket = await this.googleClient.verifyIdToken({
+        idToken: dto.credential,
+        audience: this.config.get('GOOGLE_CLIENT_ID'),
+      });
+    } catch {
+      throw new UnauthorizedException('Token de Google inválido o expirado.');
+    }
+
+    const payload = ticket.getPayload();
+    if (!payload?.email) throw new UnauthorizedException('Token de Google sin email.');
+
+    const normalizedEmail = payload.email.trim().toLowerCase();
     let user = await this.prisma.usuarios.findUnique({
       where: { email: normalizedEmail },
       include: { roles: true },
@@ -93,7 +113,7 @@ export class AuthService {
       const rol = await this.findOrCreateRole(ROLES.CLIENTE);
       user = await this.prisma.usuarios.create({
         data: {
-          nombre: dto.name.trim(),
+          nombre: (payload.name ?? normalizedEmail).trim(),
           email: normalizedEmail,
           password: await bcrypt.hash(Math.random().toString(36), 10),
           id_rol: rol.id_rol,

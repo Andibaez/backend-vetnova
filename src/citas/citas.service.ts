@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
 import { UpdateCitaDto } from './dto/update-cita.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
@@ -27,7 +28,10 @@ function flattenVeterinario<T extends CitaConRelaciones>(cita: T) {
 
 @Injectable()
 export class CitasService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notificaciones: NotificacionesService,
+  ) {}
 
   async create(dto: CreateCitaDto, user: JwtPayload) {
     const mascota = await this.prisma.mascotas.findUnique({
@@ -74,6 +78,19 @@ export class CitasService {
       },
       include: CITA_INCLUDE,
     });
+
+    if (user.role === ROLES.CLIENTE) {
+      const mascotaNombre = (cita as any).mascotas?.nombre ?? 'su mascota';
+      await this.notificaciones.crearParaAdmins(
+        'Nueva cita solicitada',
+        `${user.name} ha solicitado una cita para ${mascotaNombre} el ${dto.fecha} a las ${dto.hora}.`,
+        'nueva_cita',
+        user.sub,
+        cita.id_cita,
+        'cita',
+      );
+    }
+
     return flattenVeterinario(cita);
   }
 

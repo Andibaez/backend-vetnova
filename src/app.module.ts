@@ -10,6 +10,7 @@ import { ProductosModule } from './productos/productos.module';
 import { ServiciosModule } from './servicios/servicios.module';
 import { AuthModule } from './auth/auth.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
+import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -25,6 +26,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     CitasModule,
     ProductosModule,
     ServiciosModule,
+    NotificacionesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

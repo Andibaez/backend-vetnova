@@ -2,8 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model citas {
@@ -126,6 +127,21 @@ model propietarios {
   usuarios       usuarios?  @relation(fields: [id_usuario], references: [id_usuario])
 }
 
+model notificaciones {
+  id_notificacion    Int       @id @default(autoincrement())
+  titulo             String    @db.VarChar(150)
+  mensaje            String
+  tipo               String    @default("general") @db.VarChar(50)
+  leida              Boolean   @default(false)
+  referencia_id      Int?
+  referencia_tipo    String?   @db.VarChar(50)
+  created_at         DateTime  @default(now()) @db.Timestamp(6)
+  id_usuario_destino Int
+  id_usuario_origen  Int?
+  destino            usuarios  @relation("notificaciones_destino", fields: [id_usuario_destino], references: [id_usuario], onDelete: Cascade)
+  origen             usuarios? @relation("notificaciones_origen", fields: [id_usuario_origen], references: [id_usuario], onDelete: SetNull)
+}
+
 model recordatorios {
   id_recordatorio    Int       @id @default(autoincrement())
   mensaje            String?
@@ -165,17 +181,19 @@ model servicios {
 }
 
 model usuarios {
-  id_usuario     Int             @id @default(autoincrement())
-  nombre         String?         @db.VarChar(100)
-  email          String          @unique @db.VarChar(100)
-  password       String          @db.VarChar(255)
-  id_rol         Int?
-  citas          citas[]
-  consultas      consultas[]
-  propietarios   propietarios?
-  veterinarios   veterinarios?
-  recepcionistas recepcionistas?
-  roles          roles?          @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
+  id_usuario              Int               @id @default(autoincrement())
+  nombre                  String?           @db.VarChar(100)
+  email                   String            @unique @db.VarChar(100)
+  password                String            @db.VarChar(255)
+  id_rol                  Int?
+  citas                   citas[]
+  consultas               consultas[]
+  propietarios            propietarios?
+  veterinarios            veterinarios?
+  recepcionistas          recepcionistas?
+  notificaciones_recibidas notificaciones[] @relation("notificaciones_destino")
+  notificaciones_enviadas  notificaciones[] @relation("notificaciones_origen")
+  roles                   roles?            @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
 }
 
 model vacunas {

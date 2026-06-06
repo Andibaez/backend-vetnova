@@ -15,10 +15,10 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 export class MascotasController {
   constructor(private readonly mascotasService: MascotasService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Post()
-  create(@Body() dto: CreateMascotaDto) {
-    return this.mascotasService.create(dto);
+  create(@Body() dto: CreateMascotaDto, @CurrentUser() user: JwtPayload) {
+    return this.mascotasService.create(dto, user);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)

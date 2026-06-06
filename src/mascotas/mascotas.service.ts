@@ -10,8 +10,15 @@ import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagina
 export class MascotasService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreateMascotaDto) {
-    if (dto.id_propietario !== undefined) {
+  async create(dto: CreateMascotaDto, user: JwtPayload) {
+    if (user.role === ROLES.CLIENTE) {
+      const prop = await this.prisma.propietarios.findUnique({ where: { id_usuario: user.sub } });
+      if (!prop) throw new ForbiddenException('No tienes un perfil de propietario.');
+      if (dto.id_propietario && dto.id_propietario !== prop.id_propietario) {
+        throw new ForbiddenException('Solo puedes registrar mascotas a tu propio perfil.');
+      }
+      dto.id_propietario = prop.id_propietario;
+    } else if (dto.id_propietario !== undefined) {
       const propietario = await this.prisma.propietarios.findUnique({
         where: { id_propietario: dto.id_propietario },
       });

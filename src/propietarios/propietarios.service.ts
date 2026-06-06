@@ -13,8 +13,13 @@ export class PropietariosService {
     return this.prisma.propietarios.create({ data: dto });
   }
 
-  findAll(user: JwtPayload) {
-    const where = user.role === ROLES.CLIENTE ? { id_usuario: user.sub } : undefined;
+  findAll(user: JwtPayload, id_usuario?: number) {
+    let where: { id_usuario?: number } | undefined;
+    if (user.role === ROLES.CLIENTE) {
+      where = { id_usuario: user.sub };
+    } else if (id_usuario) {
+      where = { id_usuario };
+    }
     return this.prisma.propietarios.findMany({
       where,
       include: { mascotas: true },

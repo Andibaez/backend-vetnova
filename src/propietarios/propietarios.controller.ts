@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PropietariosService } from './propietarios.service';
 import { CreatePropietarioDto } from './dto/create-propietario.dto';
@@ -22,8 +22,11 @@ export class PropietariosController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
   @Get()
-  findAll(@CurrentUser() user: JwtPayload) {
-    return this.propietariosService.findAll(user);
+  findAll(
+    @CurrentUser() user: JwtPayload,
+    @Query('id_usuario') idUsuario?: string,
+  ) {
+    return this.propietariosService.findAll(user, idUsuario ? parseInt(idUsuario, 10) : undefined);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)

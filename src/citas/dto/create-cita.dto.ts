@@ -1,4 +1,15 @@
-import { IsDateString, IsInt, IsOptional, IsString } from 'class-validator';
+import { IsDateString, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
+
+const ESTADOS_VALIDOS = [
+  'pendiente',
+  'confirmada',
+  'en espera',
+  'en atención',
+  'finalizada',
+  'cancelada',
+  'no asistió',
+  'reprogramada',
+] as const;
 
 export class CreateCitaDto {
   @IsDateString()
@@ -8,7 +19,7 @@ export class CreateCitaDto {
   hora: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(ESTADOS_VALIDOS, { message: `estado debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}` })
   estado?: string;
 
   @IsOptional()
@@ -29,4 +40,9 @@ export class CreateCitaDto {
   @IsOptional()
   @IsInt()
   id_veterinario?: number;
+
+  /** Nombre del veterinario — usado como fallback si no se envía id_veterinario */
+  @IsOptional()
+  @IsString()
+  veterinario?: string;
 }

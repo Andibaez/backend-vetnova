@@ -14,13 +14,13 @@ import { JwtPayload } from '../common/types/jwt-payload.type';
 export class MascotasController {
   constructor(private readonly mascotasService: MascotasService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Post()
   create(@Body() dto: CreateMascotaDto) {
     return this.mascotasService.create(dto);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(
     @CurrentUser() user: JwtPayload,
@@ -32,13 +32,13 @@ export class MascotasController {
     );
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
     return this.mascotasService.findOne(id, user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,

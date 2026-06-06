@@ -14,25 +14,25 @@ import { JwtPayload } from '../common/types/jwt-payload.type';
 export class CitasController {
   constructor(private readonly citasService: CitasService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.CLIENTE)
   @Post()
   create(@Body() dto: CreateCitaDto, @CurrentUser() user: JwtPayload) {
     return this.citasService.create(dto, user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
     return this.citasService.findAll(user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
     return this.citasService.findOne(id, user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -42,7 +42,7 @@ export class CitasController {
     return this.citasService.update(id, dto, user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN)
   @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.citasService.remove(id);

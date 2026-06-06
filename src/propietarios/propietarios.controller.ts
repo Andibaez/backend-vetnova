@@ -14,13 +14,13 @@ import { JwtPayload } from '../common/types/jwt-payload.type';
 export class PropietariosController {
   constructor(private readonly propietariosService: PropietariosService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN)
   @Post()
   create(@Body() dto: CreatePropietarioDto) {
     return this.propietariosService.create(dto);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(
     @CurrentUser() user: JwtPayload,
@@ -29,13 +29,13 @@ export class PropietariosController {
     return this.propietariosService.findAll(user, idUsuario ? parseInt(idUsuario, 10) : undefined);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
     return this.propietariosService.findOne(id, user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.CLIENTE)
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,

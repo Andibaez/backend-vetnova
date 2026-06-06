@@ -6,8 +6,8 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding roles y usuario administrador...');
 
-  // 1. Crear los 4 roles si no existen
-  const roles = ['Administrador', 'Veterinario', 'Recepcionista', 'Cliente'];
+  // 1. Crear los 3 roles si no existen
+  const roles = ['Administrador', 'Veterinario', 'Cliente'];
   for (const nombre of roles) {
     await prisma.roles.upsert({
       where: { nombre },
@@ -58,24 +58,6 @@ async function main() {
     });
     await prisma.veterinarios.create({ data: { id_usuario: vet.id_usuario } });
     console.log(`  ✅ Veterinario de prueba: ${vetEmail} / Vet1234!`);
-  }
-
-  // 4. Recepcionista de prueba
-  const recepEmail = 'recepcion@vetnova.com';
-  const rolRecep = await prisma.roles.findUnique({ where: { nombre: 'Recepcionista' } });
-  const existeRecep = await prisma.usuarios.findUnique({ where: { email: recepEmail } });
-  if (!existeRecep && rolRecep) {
-    const hashed = await bcrypt.hash('Recep123!', 10);
-    const recep = await prisma.usuarios.create({
-      data: {
-        nombre: 'María López',
-        email: recepEmail,
-        password: hashed,
-        id_rol: rolRecep.id_rol,
-      },
-    });
-    await prisma.recepcionistas.create({ data: { id_usuario: recep.id_usuario } });
-    console.log(`  ✅ Recepcionista de prueba: ${recepEmail} / Recep123!`);
   }
 
   console.log('\n🎉 Seed completado.');

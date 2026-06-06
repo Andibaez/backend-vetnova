@@ -71,7 +71,18 @@ export class UsuariosService {
   async remove(id: number) {
     const existing = await this.prisma.usuarios.findUnique({ where: { id_usuario: id } });
     if (!existing) throw new NotFoundException('Usuario no encontrado.');
-    await this.prisma.usuarios.delete({ where: { id_usuario: id } });
+
+    await this.prisma.$transaction([
+      // Relaciones con id_usuario no nullable — deben eliminarse primero
+      this.prisma.veterinarios.deleteMany({ where: { id_usuario: id } }),
+      // Relaciones con id_usuario nullable — se desvinculan
+      this.prisma.citas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),
+      this.prisma.consultas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),
+      this.prisma.propietarios.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),
+      // Finalmente eliminar el usuario
+      this.prisma.usuarios.delete({ where: { id_usuario: id } }),
+    ]);
+
     return { message: 'Usuario eliminado.' };
   }
 

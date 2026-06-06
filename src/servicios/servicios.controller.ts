@@ -10,7 +10,7 @@ import { ROLES } from '../common/constants/roles.constant';
 export class ServiciosController {
   constructor(private readonly serviciosService: ServiciosService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll() {
     return this.serviciosService.findAll();

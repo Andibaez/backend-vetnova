@@ -130,8 +130,6 @@ export class AuthService {
       });
     } else if (role === ROLES.VETERINARIO) {
       await this.prisma.veterinarios.create({ data: { id_usuario } });
-    } else if (role === ROLES.RECEPCIONISTA) {
-      await this.prisma.recepcionistas.create({ data: { id_usuario } });
     }
   }
 
@@ -147,9 +145,6 @@ export class AuthService {
     } else if (role === ROLES.VETERINARIO) {
       const exists = await this.prisma.veterinarios.findUnique({ where: { id_usuario } });
       if (!exists) await this.prisma.veterinarios.create({ data: { id_usuario } });
-    } else if (role === ROLES.RECEPCIONISTA) {
-      const exists = await this.prisma.recepcionistas.findUnique({ where: { id_usuario } });
-      if (!exists) await this.prisma.recepcionistas.create({ data: { id_usuario } });
     }
   }
 

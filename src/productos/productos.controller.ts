@@ -12,25 +12,25 @@ import { ROLES } from '../common/constants/roles.constant';
 export class ProductosController {
   constructor(private readonly productosService: ProductosService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Get()
   findAll() {
     return this.productosService.findAll();
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.productosService.findOne(id);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN)
   @Post()
   create(@Body() dto: CreateProductoDto) {
     return this.productosService.create(dto);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.RECEPCIONISTA)
+  @Roles(ROLES.ADMIN)
   @Put(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductoDto) {
     return this.productosService.update(id, dto);

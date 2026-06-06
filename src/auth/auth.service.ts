@@ -13,6 +13,11 @@ import { GoogleAuthDto } from './dto/google-auth.dto';
 import { ROLES, RoleName } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
+interface ResetTokenPayload {
+  sub: number;
+  type: 'reset';
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -146,6 +151,41 @@ export class AuthService {
       const exists = await this.prisma.recepcionistas.findUnique({ where: { id_usuario } });
       if (!exists) await this.prisma.recepcionistas.create({ data: { id_usuario } });
     }
+  }
+
+  async forgotPassword(email: string): Promise<{ resetToken?: string }> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await this.prisma.usuarios.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    // Respuesta idéntica si el usuario existe o no — evita user enumeration
+    if (!user) return {};
+
+    const payload: ResetTokenPayload = { sub: user.id_usuario, type: 'reset' };
+    const resetToken = this.jwt.sign(payload, { expiresIn: '1h' });
+    return { resetToken };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    let payload: ResetTokenPayload;
+    try {
+      payload = this.jwt.verify<ResetTokenPayload>(token);
+    } catch {
+      throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+    }
+
+    if (payload.type !== 'reset') {
+      throw new UnauthorizedException('Token inválido.');
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await this.prisma.usuarios.update({
+      where: { id_usuario: payload.sub },
+      data: { password: hashed },
+    });
+
+    return { message: 'Contraseña actualizada correctamente.' };
   }
 
   private async findOrCreateRole(nombre: string) {

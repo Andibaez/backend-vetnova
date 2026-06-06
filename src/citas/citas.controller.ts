@@ -14,7 +14,7 @@ import { JwtPayload } from '../common/types/jwt-payload.type';
 export class CitasController {
   constructor(private readonly citasService: CitasService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.CLIENTE)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Post()
   create(@Body() dto: CreateCitaDto, @CurrentUser() user: JwtPayload) {
     return this.citasService.create(dto, user);

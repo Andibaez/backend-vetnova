@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CitasService } from './citas.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
@@ -7,6 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiBearerAuth()
 @ApiTags('citas')
@@ -22,8 +23,8 @@ export class CitasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
-  findAll(@CurrentUser() user: JwtPayload) {
-    return this.citasService.findAll(user);
+  findAll(@CurrentUser() user: JwtPayload, @Query() pagination: PaginationDto) {
+    return this.citasService.findAll(user, pagination);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)

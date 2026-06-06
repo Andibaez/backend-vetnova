@@ -31,8 +31,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     // 5xx — loguear internamente, nunca exponer detalles al cliente
+    const requestId = (request as any)['requestId'] ?? '-';
     this.logger.error(
-      `[${request.method}] ${request.url}`,
+      `[${requestId}] [${request.method}] ${request.url}`,
       exception instanceof Error ? exception.stack : String(exception),
     );
 

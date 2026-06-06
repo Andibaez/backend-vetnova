@@ -10,18 +10,20 @@ import * as bcrypt from 'bcrypt';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { ROLES, RoleName } from '../common/constants/roles.constant';
+import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class UsuariosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(rol?: string) {
-    const users = await this.prisma.usuarios.findMany({
-      where: rol ? { roles: { nombre: rol } } : undefined,
-      include: { roles: true },
-      orderBy: { nombre: 'asc' },
-    });
-    return users.map((u) => this.sanitize(u));
+  async findAll(rol?: string, pagination: PaginationDto = {}) {
+    const { take, skip } = paginate(pagination.page, pagination.limit);
+    const where = rol ? { roles: { nombre: rol } } : undefined;
+    const [users, total] = await Promise.all([
+      this.prisma.usuarios.findMany({ where, include: { roles: true }, orderBy: { nombre: 'asc' }, take, skip }),
+      this.prisma.usuarios.count({ where }),
+    ]);
+    return paginatedResponse(users.map((u) => this.sanitize(u)), total, pagination.page ?? 1, pagination.limit ?? 20);
   }
 
   async findOne(id: number) {

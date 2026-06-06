@@ -7,6 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiBearerAuth()
 @ApiTags('mascotas')
@@ -25,10 +26,12 @@ export class MascotasController {
   findAll(
     @CurrentUser() user: JwtPayload,
     @Query('id_propietario') id_propietario?: string,
+    @Query() pagination?: PaginationDto,
   ) {
     return this.mascotasService.findAll(
       user,
       id_propietario ? parseInt(id_propietario, 10) : undefined,
+      pagination,
     );
   }
 

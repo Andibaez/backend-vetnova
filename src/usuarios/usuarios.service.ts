@@ -74,6 +74,7 @@ export class UsuariosService {
 
     await this.prisma.$transaction([
       // Relaciones con id_usuario no nullable — deben eliminarse primero
+      this.prisma.recepcionistas.deleteMany({ where: { id_usuario: id } }),
       this.prisma.veterinarios.deleteMany({ where: { id_usuario: id } }),
       // Relaciones con id_usuario nullable — se desvinculan
       this.prisma.citas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),

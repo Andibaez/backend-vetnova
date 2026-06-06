@@ -1,5 +1,6 @@
 import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class MailService {
@@ -8,37 +9,30 @@ export class MailService {
   constructor(private readonly config: ConfigService) {}
 
   async sendPasswordReset(to: string, nombre: string, resetLink: string) {
-    const serviceId  = this.config.getOrThrow<string>('EMAILJS_SERVICE_ID');
-    const templateId = this.config.getOrThrow<string>('EMAILJS_TEMPLATE_RESET');
-    const publicKey  = this.config.getOrThrow<string>('EMAILJS_PUBLIC_KEY');
-    const privateKey = this.config.getOrThrow<string>('EMAILJS_PRIVATE_KEY');
+    const user = this.config.getOrThrow<string>('GMAIL_USER');
+    const pass = this.config.getOrThrow<string>('GMAIL_APP_PASSWORD');
 
-    const body = {
-      service_id:      serviceId,
-      template_id:     templateId,
-      user_id:         publicKey,
-      accessToken:     privateKey,
-      template_params: {
-        to_email:   to,
-        to_name:    nombre,
-        reset_link: resetLink,
-        subject:    'Recuperación de contraseña — VetNova',
-        message:    `Hola ${nombre}, haz clic en el enlace para restablecer tu contraseña. Expira en 1 hora.`,
-      },
-    };
-
-    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass },
     });
 
-    if (!res.ok) {
-      const detail = await res.text();
-      this.logger.error(`EmailJS error ${res.status}: ${detail}`);
+    try {
+      await transporter.sendMail({
+        from: `"VetNova" <${user}>`,
+        to,
+        subject: 'Recuperación de contraseña — VetNova',
+        html: `
+          <p>Hola <strong>${nombre}</strong>,</p>
+          <p>Haz clic en el siguiente enlace para restablecer tu contraseña. Expira en 1 hora.</p>
+          <p><a href="${resetLink}">${resetLink}</a></p>
+          <p>Si no solicitaste esto, ignora este correo.</p>
+        `,
+      });
+      this.logger.log(`Reset password email sent to ${to}`);
+    } catch (err) {
+      this.logger.error('Nodemailer error:', err);
       throw new InternalServerErrorException('No se pudo enviar el correo de recuperación.');
     }
-
-    this.logger.log(`Reset password email sent to ${to}`);
   }
 }

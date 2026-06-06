@@ -3,11 +3,17 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      frameguard: { action: 'deny' },          // X-Frame-Options: DENY
+      contentSecurityPolicy: false,            // CSP lo gestiona el frontend
+    }),
+  );
 
   app.enableCors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3001'],
@@ -16,11 +22,14 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      stopAtFirstError: true,
     }),
   );
 

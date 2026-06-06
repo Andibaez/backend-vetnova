@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly mail: MailService,
   ) {
     this.googleClient = new OAuth2Client(config.get('GOOGLE_CLIENT_ID'));
   }
@@ -168,18 +170,24 @@ export class AuthService {
     }
   }
 
-  async forgotPassword(email: string): Promise<{ resetToken?: string }> {
+  async forgotPassword(email: string): Promise<{ message: string }> {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await this.prisma.usuarios.findUnique({
       where: { email: normalizedEmail },
     });
 
     // Respuesta idéntica si el usuario existe o no — evita user enumeration
-    if (!user) return {};
+    if (!user) return { message: 'Si el correo está registrado, recibirás un enlace de recuperación.' };
 
     const payload: ResetTokenPayload = { sub: user.id_usuario, type: 'reset' };
     const resetToken = this.jwt.sign(payload, { expiresIn: '1h' });
-    return { resetToken };
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
+    const resetLink = `${frontendUrl}/auth/reset-password?token=${resetToken}`;
+
+    await this.mail.sendPasswordReset(normalizedEmail, user.nombre ?? 'Usuario', resetLink);
+
+    return { message: 'Si el correo está registrado, recibirás un enlace de recuperación.' };
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {

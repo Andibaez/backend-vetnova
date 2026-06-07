@@ -204,10 +204,12 @@ model vacunas {
 }
 
 model veterinarios {
-  id_veterinario Int      @id @default(autoincrement())
-  especialidad   String?  @db.VarChar(100)
-  licencia       String?  @db.VarChar(50)
-  id_usuario     Int      @unique
-  citas          citas[]
-  usuarios       usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  id_veterinario   Int      @id @default(autoincrement())
+  especialidad     String?  @db.VarChar(100)
+  licencia         String?  @db.VarChar(50)
+  telefono         String?  @db.VarChar(20)
+  horario_atencion String?  @db.VarChar(100)
+  id_usuario       Int      @unique
+  citas            citas[]
+  usuarios         usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }

@@ -157,9 +157,28 @@ export class CitasService {
       }
     }
 
+    const { veterinario, ...rest } = dto;
+
+    // Resolver id_veterinario: usar el ID directo o buscar por nombre como fallback
+    let id_veterinario = rest.id_veterinario;
+    if (id_veterinario === undefined && veterinario) {
+      const vet = await this.prisma.veterinarios.findFirst({
+        where: { usuarios: { nombre: { contains: veterinario, mode: 'insensitive' } } },
+      });
+      id_veterinario = vet?.id_veterinario ?? undefined;
+    }
+    if (id_veterinario !== undefined) {
+      const vet = await this.prisma.veterinarios.findUnique({ where: { id_veterinario } });
+      if (!vet) throw new BadRequestException('El veterinario no existe');
+    }
+
+    const data: Record<string, unknown> = { ...rest };
+    if (id_veterinario !== undefined) data.id_veterinario = id_veterinario;
+    if (data.fecha) data.fecha = new Date(data.fecha as string);
+
     const cita = await this.prisma.citas.update({
       where: { id_cita: id },
-      data: dto,
+      data,
       include: CITA_INCLUDE,
     });
     return flattenVeterinario(cita);

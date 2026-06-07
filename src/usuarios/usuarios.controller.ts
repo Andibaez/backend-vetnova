@@ -4,7 +4,9 @@ import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
 import { FindUsuariosDto } from './dto/find-usuarios.dto';
 
 @ApiBearerAuth()
@@ -29,9 +31,14 @@ export class UsuariosController {
     return this.usuariosService.create(dto);
   }
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUsuarioDto) {
-    return this.usuariosService.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUsuarioDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.usuariosService.update(id, dto, user);
   }
 
   @Delete(':id')

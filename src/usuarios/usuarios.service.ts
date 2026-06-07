@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { ROLES, RoleName } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
 import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagination.dto';
 
 @Injectable()
@@ -51,9 +52,17 @@ export class UsuariosService {
     return this.sanitize(user);
   }
 
-  async update(id: number, dto: UpdateUsuarioDto) {
+  async update(id: number, dto: UpdateUsuarioDto, currentUser?: JwtPayload) {
     const existing = await this.prisma.usuarios.findUnique({ where: { id_usuario: id } });
     if (!existing) throw new NotFoundException('Usuario no encontrado.');
+
+    const isAdmin = currentUser?.role === ROLES.ADMIN;
+    if (currentUser && !isAdmin && existing.id_usuario !== currentUser.sub) {
+      throw new ForbiddenException('No puedes modificar este perfil.');
+    }
+    if (currentUser && !isAdmin && dto.rol) {
+      throw new ForbiddenException('No puedes cambiar tu propio rol.');
+    }
 
     const data: Record<string, unknown> = {};
     if (dto.nombre) data.nombre = dto.nombre.trim();

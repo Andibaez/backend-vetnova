@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { FindMascotasDto } from './dto/find-mascotas.dto';
 
 @ApiBearerAuth()
 @ApiTags('mascotas')
@@ -23,15 +23,11 @@ export class MascotasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
-  findAll(
-    @CurrentUser() user: JwtPayload,
-    @Query('id_propietario') id_propietario?: string,
-    @Query() pagination?: PaginationDto,
-  ) {
+  findAll(@CurrentUser() user: JwtPayload, @Query() query: FindMascotasDto) {
     return this.mascotasService.findAll(
       user,
-      id_propietario ? parseInt(id_propietario, 10) : undefined,
-      pagination,
+      query.id_propietario ? parseInt(query.id_propietario, 10) : undefined,
+      { page: query.page, limit: query.limit },
     );
   }
 

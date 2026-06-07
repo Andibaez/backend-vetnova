@@ -5,7 +5,7 @@ import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { ROLES } from '../common/constants/roles.constant';
-import { PaginationDto } from '../common/dto/pagination.dto';
+import { FindUsuariosDto } from './dto/find-usuarios.dto';
 
 @ApiBearerAuth()
 @ApiTags('usuarios')
@@ -15,8 +15,8 @@ export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
   @Get()
-  findAll(@Query('rol') rol?: string, @Query() pagination?: PaginationDto) {
-    return this.usuariosService.findAll(rol, pagination);
+  findAll(@Query() query: FindUsuariosDto) {
+    return this.usuariosService.findAll(query.rol, { page: query.page, limit: query.limit });
   }
 
   @Get(':id')

@@ -183,7 +183,7 @@ export class AuthService {
     const resetToken = this.jwt.sign(payload, { expiresIn: '1h' });
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
-    const resetLink = `${frontendUrl}/auth/reset-password?token=${resetToken}`;
+    const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     await this.mail.sendPasswordReset(normalizedEmail, user.nombre ?? 'Usuario', resetLink);
 

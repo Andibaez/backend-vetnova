@@ -32,7 +32,11 @@ export class JwtAuthGuard implements CanActivate {
 
     const token = auth.slice(7);
     try {
-      request.user = this.jwt.verify<JwtPayload>(token);
+      const payload = this.jwt.verify<JwtPayload & { type?: string }>(token);
+      if (payload.type === 'reset') {
+        throw new UnauthorizedException('Token inválido o expirado.');
+      }
+      request.user = payload;
       return true;
     } catch {
       throw new UnauthorizedException('Token inválido o expirado.');

@@ -92,17 +92,23 @@ export class UsuariosService {
     const existing = await this.prisma.usuarios.findUnique({ where: { id_usuario: id } });
     if (!existing) throw new NotFoundException('Usuario no encontrado.');
 
-    await this.prisma.$transaction([
-      // Relaciones con id_usuario no nullable — deben eliminarse primero
-      this.prisma.recepcionistas.deleteMany({ where: { id_usuario: id } }),
-      this.prisma.veterinarios.deleteMany({ where: { id_usuario: id } }),
-      // Relaciones con id_usuario nullable — se desvinculan
-      this.prisma.citas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),
-      this.prisma.consultas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),
-      this.prisma.propietarios.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } }),
-      // Finalmente eliminar el usuario
-      this.prisma.usuarios.delete({ where: { id_usuario: id } }),
-    ]);
+    await this.prisma.$transaction(async (tx) => {
+      // Si el usuario es veterinario, desvincular sus citas antes de eliminar el perfil
+      const vet = await tx.veterinarios.findUnique({ where: { id_usuario: id } });
+      if (vet) {
+        await tx.citas.updateMany({
+          where: { id_veterinario: vet.id_veterinario },
+          data: { id_veterinario: null },
+        });
+      }
+
+      await tx.recepcionistas.deleteMany({ where: { id_usuario: id } });
+      await tx.veterinarios.deleteMany({ where: { id_usuario: id } });
+      await tx.citas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } });
+      await tx.consultas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } });
+      await tx.propietarios.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } });
+      await tx.usuarios.delete({ where: { id_usuario: id } });
+    });
 
     return { message: 'Usuario eliminado.' };
   }

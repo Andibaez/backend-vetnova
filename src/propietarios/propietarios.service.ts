@@ -13,15 +13,27 @@ export class PropietariosService {
     return this.prisma.propietarios.create({ data: dto });
   }
 
-  findAll(user: JwtPayload, id_usuario?: number) {
-    let where: { id_usuario?: number } | undefined;
+  async findAll(user: JwtPayload, id_usuario?: number) {
     if (user.role === ROLES.CLIENTE) {
-      where = { id_usuario: user.sub };
-    } else if (id_usuario) {
-      where = { id_usuario };
+      return this.prisma.propietarios.findMany({
+        where: { id_usuario: user.sub },
+        include: { mascotas: true },
+      });
     }
+
+    if (user.role === ROLES.VETERINARIO) {
+      const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
+      if (!vet) return [];
+      // Solo propietarios cuyas mascotas tienen citas asignadas a este veterinario
+      return this.prisma.propietarios.findMany({
+        where: { mascotas: { some: { citas: { some: { id_veterinario: vet.id_veterinario } } } } },
+        include: { mascotas: true },
+      });
+    }
+
+    // Admin: acceso total, con filtro opcional por id_usuario
     return this.prisma.propietarios.findMany({
-      where,
+      where: id_usuario ? { id_usuario } : undefined,
       include: { mascotas: true },
     });
   }
@@ -54,6 +66,14 @@ export class PropietariosService {
       where: { id_propietario: id },
     });
     if (!propietario) throw new NotFoundException('Propietario no existe');
-    return this.prisma.propietarios.delete({ where: { id_propietario: id } });
+
+    await this.prisma.$transaction([
+      // Facturas se desvinculan (registros financieros se conservan)
+      this.prisma.facturas.updateMany({ where: { id_propietario: id }, data: { id_propietario: null } }),
+      // mascotas.id_propietario es nullable sin onDelete explícito → SetNull automático en BD
+      this.prisma.propietarios.delete({ where: { id_propietario: id } }),
+    ]);
+
+    return { message: 'Propietario eliminado.' };
   }
 }

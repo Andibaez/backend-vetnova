@@ -45,6 +45,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ global: { limit: 5, ttl: 900000 } })
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);

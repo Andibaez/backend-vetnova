@@ -10,6 +10,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
@@ -43,9 +44,7 @@ export class AuthService {
       throw new ConflictException('Ya existe una cuenta con ese correo.');
     }
 
-    // El registro público nunca puede crear Administradores
-    const roleName: RoleName =
-      dto.rol && dto.rol !== ROLES.ADMIN ? (dto.rol as RoleName) : ROLES.CLIENTE;
+    const roleName: RoleName = ROLES.CLIENTE;
 
     const rol = await this.findOrCreateRole(roleName);
     const hashed = await bcrypt.hash(dto.password, 10);
@@ -117,7 +116,7 @@ export class AuthService {
         data: {
           nombre: (payload.name ?? normalizedEmail).trim(),
           email: normalizedEmail,
-          password: await bcrypt.hash(Math.random().toString(36), 10),
+          password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
           id_rol: rol.id_rol,
         },
         include: { roles: true },
@@ -180,7 +179,9 @@ export class AuthService {
     if (!user) return { message: 'Si el correo está registrado, recibirás un enlace de recuperación.' };
 
     const payload: ResetTokenPayload = { sub: user.id_usuario, type: 'reset' };
-    const resetToken = this.jwt.sign(payload, { expiresIn: '1h' });
+    // El secreto incluye el hash actual de la contraseña — al cambiarla el token queda inválido
+    const resetSecret = this.config.get<string>('JWT_SECRET')! + user.password;
+    const resetToken = this.jwt.sign(payload, { secret: resetSecret, expiresIn: '1h' });
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
@@ -191,20 +192,32 @@ export class AuthService {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    let payload: ResetTokenPayload;
+    // Decodificar sin verificar para obtener el sub y buscar al usuario
+    let unverified: ResetTokenPayload;
     try {
-      payload = this.jwt.verify<ResetTokenPayload>(token);
+      unverified = this.jwt.decode(token) as ResetTokenPayload;
     } catch {
       throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
     }
 
-    if (payload.type !== 'reset') {
-      throw new UnauthorizedException('Token inválido.');
+    if (!unverified?.sub || unverified.type !== 'reset') {
+      throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+    }
+
+    const user = await this.prisma.usuarios.findUnique({ where: { id_usuario: unverified.sub } });
+    if (!user) throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+
+    // Verificar con el secreto que incluye el hash actual — falla si la contraseña ya cambió
+    const resetSecret = this.config.get<string>('JWT_SECRET')! + user.password;
+    try {
+      this.jwt.verify<ResetTokenPayload>(token, { secret: resetSecret });
+    } catch {
+      throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
     await this.prisma.usuarios.update({
-      where: { id_usuario: payload.sub },
+      where: { id_usuario: user.id_usuario },
       data: { password: hashed },
     });
 

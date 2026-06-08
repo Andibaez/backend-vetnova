@@ -149,7 +149,6 @@ export class CitasService {
     const existing = await this.prisma.citas.findUnique({ where: { id_cita: id } });
     if (!existing) throw new NotFoundException('Cita no existe');
 
-    // El veterinario solo puede actualizar citas asignadas a él
     if (user.role === ROLES.VETERINARIO) {
       const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
       if (!vet || existing.id_veterinario !== vet.id_veterinario) {
@@ -157,23 +156,36 @@ export class CitasService {
       }
     }
 
-    const { veterinario, ...rest } = dto;
+    // Veterinario solo puede modificar campos clínicos — nunca reasignar mascota, usuario o veterinario
+    const data: Record<string, unknown> =
+      user.role === ROLES.VETERINARIO
+        ? { estado: dto.estado, notas: dto.notas, servicio: dto.servicio }
+        : (() => {
+            const { veterinario, ...rest } = dto;
+            const d: Record<string, unknown> = { ...rest };
 
-    // Resolver id_veterinario: usar el ID directo o buscar por nombre como fallback
-    let id_veterinario = rest.id_veterinario;
-    if (id_veterinario === undefined && veterinario) {
+            // Resolver id_veterinario por nombre si no viene el ID
+            if (rest.id_veterinario === undefined && veterinario) {
+              // Resolución asíncrona manejada abajo
+              d._resolveVet = veterinario;
+            }
+            return d;
+          })();
+
+    // Resolver nombre de veterinario para Admin
+    if (data._resolveVet) {
       const vet = await this.prisma.veterinarios.findFirst({
-        where: { usuarios: { nombre: { contains: veterinario, mode: 'insensitive' } } },
+        where: { usuarios: { nombre: { contains: data._resolveVet as string, mode: 'insensitive' } } },
       });
-      id_veterinario = vet?.id_veterinario ?? undefined;
+      data.id_veterinario = vet?.id_veterinario ?? undefined;
+      delete data._resolveVet;
     }
-    if (id_veterinario !== undefined) {
-      const vet = await this.prisma.veterinarios.findUnique({ where: { id_veterinario } });
+
+    if (data.id_veterinario !== undefined) {
+      const vet = await this.prisma.veterinarios.findUnique({ where: { id_veterinario: data.id_veterinario as number } });
       if (!vet) throw new BadRequestException('El veterinario no existe');
     }
 
-    const data: Record<string, unknown> = { ...rest };
-    if (id_veterinario !== undefined) data.id_veterinario = id_veterinario;
     if (data.fecha) data.fecha = new Date(data.fecha as string);
 
     const cita = await this.prisma.citas.update({

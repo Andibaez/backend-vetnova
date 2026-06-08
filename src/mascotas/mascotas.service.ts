@@ -78,6 +78,19 @@ export class MascotasService {
   async deleteMascota(id: number) {
     const mascota = await this.prisma.mascotas.findUnique({ where: { id_mascota: id } });
     if (!mascota) throw new NotFoundException('Mascota no existe');
-    return this.prisma.mascotas.delete({ where: { id_mascota: id } });
+
+    await this.prisma.$transaction([
+      // Consultas dependen de historias_clinicas → eliminar primero
+      this.prisma.consultas.deleteMany({ where: { historias_clinicas: { id_mascota: id } } }),
+      this.prisma.historias_clinicas.deleteMany({ where: { id_mascota: id } }),
+      this.prisma.recordatorios.deleteMany({ where: { id_mascota: id } }),
+      this.prisma.registro_vacunas.deleteMany({ where: { id_mascota: id } }),
+      // Facturas y citas se desvinculan (registros históricos se conservan)
+      this.prisma.facturas.updateMany({ where: { id_mascota: id }, data: { id_mascota: null } }),
+      this.prisma.citas.updateMany({ where: { id_mascota: id }, data: { id_mascota: null } }),
+      this.prisma.mascotas.delete({ where: { id_mascota: id } }),
+    ]);
+
+    return { message: 'Mascota eliminada.' };
   }
 }

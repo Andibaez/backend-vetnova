@@ -28,6 +28,10 @@ export class ServiciosService {
 
   async remove(id: number) {
     await this.findOne(id);
-    return this.prisma.servicios.delete({ where: { id_servicio: id } });
+    await this.prisma.$transaction([
+      this.prisma.detalle_servicios.deleteMany({ where: { id_servicio: id } }),
+      this.prisma.servicios.delete({ where: { id_servicio: id } }),
+    ]);
+    return { message: 'Servicio eliminado.' };
   }
 }

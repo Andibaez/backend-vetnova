@@ -80,8 +80,9 @@ export class CitasService {
       include: CITA_INCLUDE,
     });
 
+    const mascotaNombre = (cita as any).mascotas?.nombre ?? 'su mascota';
+
     if (user.role === ROLES.CLIENTE) {
-      const mascotaNombre = (cita as any).mascotas?.nombre ?? 'su mascota';
       await this.notificaciones.crearParaAdmins(
         'Nueva cita solicitada',
         `${user.name} ha solicitado una cita para ${mascotaNombre} el ${dto.fecha} a las ${dto.hora}.`,
@@ -90,6 +91,25 @@ export class CitasService {
         cita.id_cita,
         'cita',
       );
+    }
+
+    // Notificar al veterinario asignado
+    if (id_veterinario) {
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_veterinario },
+        select: { id_usuario: true },
+      });
+      if (vet) {
+        await this.notificaciones.crearParaUsuario(
+          vet.id_usuario,
+          'Nueva cita asignada',
+          `Tienes una nueva cita para ${mascotaNombre} el ${dto.fecha} a las ${dto.hora}.`,
+          'nueva_cita',
+          user.sub,
+          cita.id_cita,
+          'cita',
+        );
+      }
     }
 
     return flattenVeterinario(cita);
@@ -193,6 +213,21 @@ export class CitasService {
       data,
       include: CITA_INCLUDE,
     });
+
+    // Notificar al cliente cuando su cita pasa a confirmada
+    if (data.estado === 'confirmada' && existing.id_usuario) {
+      const mascotaNombre = (cita as any).mascotas?.nombre ?? 'su mascota';
+      await this.notificaciones.crearParaUsuario(
+        existing.id_usuario,
+        'Cita confirmada',
+        `Tu cita para ${mascotaNombre} ha sido confirmada.`,
+        'cita_confirmada',
+        user.sub,
+        cita.id_cita,
+        'cita',
+      );
+    }
+
     return flattenVeterinario(cita);
   }
 

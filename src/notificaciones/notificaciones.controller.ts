@@ -12,7 +12,7 @@ import { JwtPayload } from '../common/types/jwt-payload.type';
 export class NotificacionesController {
   constructor(private readonly notificacionesService: NotificacionesService) {}
 
-  @Roles(ROLES.ADMIN)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(
     @CurrentUser() user: JwtPayload,
@@ -21,19 +21,19 @@ export class NotificacionesController {
     return this.notificacionesService.findAll(user, noLeidas === 'true');
   }
 
-  @Roles(ROLES.ADMIN)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get('count')
   count(@CurrentUser() user: JwtPayload) {
     return this.notificacionesService.count(user);
   }
 
-  @Roles(ROLES.ADMIN)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Patch('leer-todas')
   marcarTodasLeidas(@CurrentUser() user: JwtPayload) {
     return this.notificacionesService.marcarTodasLeidas(user);
   }
 
-  @Roles(ROLES.ADMIN)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Patch(':id/leer')
   marcarLeida(
     @Param('id', ParseIntPipe) id: number,

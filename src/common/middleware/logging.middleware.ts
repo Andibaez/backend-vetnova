@@ -7,7 +7,9 @@ export class LoggingMiddleware implements NestMiddleware {
   private readonly logger = new Logger('HTTP');
 
   use(req: Request, res: Response, next: NextFunction) {
-    const requestId = (req.headers['x-request-id'] as string) ?? randomUUID();
+    const incoming = req.headers['x-request-id'] as string;
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const requestId = incoming && UUID_REGEX.test(incoming) ? incoming : randomUUID();
     req['requestId'] = requestId;
     res.setHeader('x-request-id', requestId);
 

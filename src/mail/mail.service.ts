@@ -5,18 +5,20 @@ import * as nodemailer from 'nodemailer';
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
+  private readonly transporter: nodemailer.Transporter;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {
+    this.transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: this.config.getOrThrow<string>('GMAIL_USER'),
+        pass: this.config.getOrThrow<string>('GMAIL_APP_PASSWORD'),
+      },
+    });
+  }
 
   async sendPasswordReset(to: string, nombre: string, resetLink: string) {
     const user = this.config.getOrThrow<string>('GMAIL_USER');
-    const pass = this.config.getOrThrow<string>('GMAIL_APP_PASSWORD');
-
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user, pass },
-    });
-
     try {
       await transporter.sendMail({
         from: `"VetNova" <${user}>`,

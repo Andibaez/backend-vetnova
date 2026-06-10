@@ -1,4 +1,5 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import { ROLES_ARRAY } from '../../common/constants/roles.constant';
 
 export class UpdateUsuarioDto {
   @IsOptional()
@@ -19,6 +20,6 @@ export class UpdateUsuarioDto {
   currentPassword?: string;
 
   @IsOptional()
-  @IsString()
+  @IsEnum(ROLES_ARRAY, { message: `rol debe ser uno de: ${ROLES_ARRAY.join(', ')}` })
   rol?: string;
 }

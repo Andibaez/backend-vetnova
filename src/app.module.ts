@@ -13,6 +13,9 @@ import { AuthModule } from './auth/auth.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { VeterinariosModule } from './veterinarios/veterinarios.module';
+import { RecordatoriosModule } from './recordatorios/recordatorios.module';
+import { HistoriasClinicasModule } from './historias-clinicas/historias-clinicas.module';
+import { FacturasModule } from './facturas/facturas.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -30,6 +33,9 @@ import { RolesGuard } from './auth/guards/roles.guard';
     ServiciosModule,
     NotificacionesModule,
     VeterinariosModule,
+    RecordatoriosModule,
+    HistoriasClinicasModule,
+    FacturasModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

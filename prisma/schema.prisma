@@ -90,27 +90,15 @@ model mascotas {
   historias_clinicas historias_clinicas?
   propietario        propietarios?       @relation(fields: [id_propietario], references: [id_propietario])
   recordatorios      recordatorios[]
-  registro_vacunas   registro_vacunas[]
 }
 
-model movimientos_inventario {
-  id_movimiento Int        @id @default(autoincrement())
-  tipo          String?    @db.VarChar(20)
-  cantidad      Int?
-  fecha         DateTime?  @default(now()) @db.Timestamp(6)
-  id_producto   Int?
-  productos     productos? @relation(fields: [id_producto], references: [id_producto], onDelete: NoAction, onUpdate: NoAction)
-}
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model productos {
   id_producto            Int                      @id @default(autoincrement())
   nombre                 String?                  @db.VarChar(100)
   tipo                   String?                  @db.VarChar(50)
   precio                 Decimal?                 @db.Decimal(10, 2)
-  stock                  Int?
-  detalle_productos      detalle_productos[]
-  movimientos_inventario movimientos_inventario[]
+  stock             Int?
+  detalle_productos detalle_productos[]
 }
 
 model propietarios {
@@ -157,15 +145,6 @@ model recepcionistas {
   usuarios         usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model registro_vacunas {
-  id_registro   Int       @id @default(autoincrement())
-  fecha         DateTime? @db.Date
-  proxima_fecha DateTime? @db.Date
-  id_mascota    Int?
-  id_vacuna     Int?
-  mascotas      mascotas? @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
-  vacunas       vacunas?  @relation(fields: [id_vacuna], references: [id_vacuna], onDelete: NoAction, onUpdate: NoAction)
-}
 
 model roles {
   id_rol   Int        @id @default(autoincrement())
@@ -196,12 +175,6 @@ model usuarios {
   roles                   roles?            @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model vacunas {
-  id_vacuna        Int                @id @default(autoincrement())
-  nombre           String?            @db.VarChar(100)
-  frecuencia_dias  Int?
-  registro_vacunas registro_vacunas[]
-}
 
 model veterinarios {
   id_veterinario   Int      @id @default(autoincrement())

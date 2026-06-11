@@ -17,12 +17,13 @@ import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagina
 export class UsuariosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(rol?: string, pagination: PaginationDto = {}) {
+  async findAll(rol?: string, pagination: PaginationDto = {}, clinicaId?: number | null) {
     const { take, skip } = paginate(pagination.page, pagination.limit);
-    const where = rol ? { roles: { nombre: rol } } : undefined;
+    const clinicaFilter = clinicaId ? { id_clinica: clinicaId } : {};
+    const where = { ...(rol ? { roles: { nombre: rol } } : {}), ...clinicaFilter };
     const [users, total] = await Promise.all([
-      this.prisma.usuarios.findMany({ where, include: { roles: true }, orderBy: { nombre: 'asc' }, take, skip }),
-      this.prisma.usuarios.count({ where }),
+      this.prisma.usuarios.findMany({ where: Object.keys(where).length ? where : undefined, include: { roles: true }, orderBy: { nombre: 'asc' }, take, skip }),
+      this.prisma.usuarios.count({ where: Object.keys(where).length ? where : undefined }),
     ]);
     return paginatedResponse(users.map((u) => this.sanitize(u)), total, pagination.page ?? 1, pagination.limit ?? 20);
   }

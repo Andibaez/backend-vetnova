@@ -59,9 +59,14 @@ export class HistoriasClinicasService {
     });
   }
 
-  async updateConsulta(id: number, dto: UpdateConsultaDto) {
+  async updateConsulta(id: number, dto: UpdateConsultaDto, user: JwtPayload) {
     const consulta = await this.prisma.consultas.findUnique({ where: { id_consulta: id } });
     if (!consulta) throw new NotFoundException('Consulta no encontrada.');
+
+    if (user.role === ROLES.VETERINARIO && consulta.id_usuario !== user.sub) {
+      throw new ForbiddenException('Solo puedes editar consultas que tú registraste.');
+    }
+
     return this.prisma.consultas.update({
       where: { id_consulta: id },
       data: {
@@ -73,9 +78,14 @@ export class HistoriasClinicasService {
     });
   }
 
-  async removeConsulta(id: number) {
+  async removeConsulta(id: number, user: JwtPayload) {
     const consulta = await this.prisma.consultas.findUnique({ where: { id_consulta: id } });
     if (!consulta) throw new NotFoundException('Consulta no encontrada.');
+
+    if (user.role === ROLES.VETERINARIO && consulta.id_usuario !== user.sub) {
+      throw new ForbiddenException('Solo puedes eliminar consultas que tú registraste.');
+    }
+
     await this.prisma.consultas.delete({ where: { id_consulta: id } });
     return { message: 'Consulta eliminada.' };
   }

@@ -4,7 +4,9 @@ import { ServiciosService } from './servicios.service';
 import { CreateServicioDto } from './dto/create-servicio.dto';
 import { UpdateServicioDto } from './dto/update-servicio.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
 
 @ApiBearerAuth()
 @ApiTags('servicios')
@@ -14,8 +16,8 @@ export class ServiciosController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
-  findAll() {
-    return this.serviciosService.findAll();
+  findAll(@CurrentUser() user: JwtPayload) {
+    return this.serviciosService.findAll(user.clinicaId);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)

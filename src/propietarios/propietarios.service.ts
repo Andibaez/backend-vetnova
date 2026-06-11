@@ -14,9 +14,11 @@ export class PropietariosService {
   }
 
   async findAll(user: JwtPayload, id_usuario?: number) {
+    const clinicaFilter = user.clinicaId ? { id_clinica: user.clinicaId } : {};
+
     if (user.role === ROLES.CLIENTE) {
       return this.prisma.propietarios.findMany({
-        where: { id_usuario: user.sub },
+        where: { id_usuario: user.sub, ...clinicaFilter },
         include: { mascotas: true },
       });
     }
@@ -24,16 +26,17 @@ export class PropietariosService {
     if (user.role === ROLES.VETERINARIO) {
       const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
       if (!vet) return [];
-      // Solo propietarios cuyas mascotas tienen citas asignadas a este veterinario
       return this.prisma.propietarios.findMany({
-        where: { mascotas: { some: { citas: { some: { id_veterinario: vet.id_veterinario } } } } },
+        where: {
+          mascotas: { some: { citas: { some: { id_veterinario: vet.id_veterinario } } } },
+          ...clinicaFilter,
+        },
         include: { mascotas: true },
       });
     }
 
-    // Admin: acceso total, con filtro opcional por id_usuario
     return this.prisma.propietarios.findMany({
-      where: id_usuario ? { id_usuario } : undefined,
+      where: { ...(id_usuario ? { id_usuario } : {}), ...clinicaFilter },
       include: { mascotas: true },
     });
   }

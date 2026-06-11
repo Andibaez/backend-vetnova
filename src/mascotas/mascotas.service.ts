@@ -29,11 +29,12 @@ export class MascotasService {
 
   async findAll(user: JwtPayload, id_propietario?: number, pagination: PaginationDto = {}) {
     const { take, skip } = paginate(pagination.page, pagination.limit);
+    const clinicaFilter = user.clinicaId ? { id_clinica: user.clinicaId } : {};
 
     if (user.role === ROLES.CLIENTE) {
       const prop = await this.prisma.propietarios.findUnique({ where: { id_usuario: user.sub } });
       if (!prop) return paginatedResponse([], 0, 1, pagination.limit ?? 20);
-      const where = { id_propietario: prop.id_propietario };
+      const where = { id_propietario: prop.id_propietario, ...clinicaFilter };
       const [mascotas, total] = await Promise.all([
         this.prisma.mascotas.findMany({ where, include: { propietario: true }, take, skip }),
         this.prisma.mascotas.count({ where }),
@@ -41,10 +42,10 @@ export class MascotasService {
       return paginatedResponse(mascotas, total, pagination.page ?? 1, pagination.limit ?? 20);
     }
 
-    const where = id_propietario ? { id_propietario } : undefined;
+    const where = { ...(id_propietario ? { id_propietario } : {}), ...clinicaFilter };
     const [mascotas, total] = await Promise.all([
-      this.prisma.mascotas.findMany({ where, include: { propietario: true }, take, skip }),
-      this.prisma.mascotas.count({ where }),
+      this.prisma.mascotas.findMany({ where: Object.keys(where).length ? where : undefined, include: { propietario: true }, take, skip }),
+      this.prisma.mascotas.count({ where: Object.keys(where).length ? where : undefined }),
     ]);
     return paginatedResponse(mascotas, total, pagination.page ?? 1, pagination.limit ?? 20);
   }

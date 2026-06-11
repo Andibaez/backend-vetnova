@@ -61,7 +61,7 @@ export class AuthService {
 
     await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName);
 
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName);
+    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
     return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
   }
 
@@ -86,7 +86,7 @@ export class AuthService {
     // Crear perfil si por alguna razón no existe aún
     await this.ensureRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName);
 
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName);
+    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
     return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
   }
 
@@ -125,7 +125,7 @@ export class AuthService {
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName);
+    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
     return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
   }
 
@@ -232,8 +232,8 @@ export class AuthService {
     return rol;
   }
 
-  private signToken(id: number, name: string, email: string, role: RoleName) {
-    const payload: Omit<JwtPayload, 'iat' | 'exp'> = { sub: id, name, email, role };
+  private signToken(id: number, name: string, email: string, role: RoleName, clinicaId: number | null = null) {
+    const payload: Omit<JwtPayload, 'iat' | 'exp'> = { sub: id, name, email, role, clinicaId };
     return this.jwt.sign(payload);
   }
 

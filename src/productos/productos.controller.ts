@@ -4,7 +4,9 @@ import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
 
 @ApiBearerAuth()
 @ApiTags('productos')
@@ -14,8 +16,8 @@ export class ProductosController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Get()
-  findAll() {
-    return this.productosService.findAll();
+  findAll(@CurrentUser() user: JwtPayload) {
+    return this.productosService.findAll(user.clinicaId);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)

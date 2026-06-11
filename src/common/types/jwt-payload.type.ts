@@ -5,6 +5,7 @@ export class JwtPayload {
   name: string;
   email: string;
   role: RoleName;
+  clinicaId: number | null;
   iat?: number;
   exp?: number;
 }

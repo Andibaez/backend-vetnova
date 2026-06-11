@@ -7,8 +7,11 @@ import { UpdateServicioDto } from './dto/update-servicio.dto';
 export class ServiciosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.servicios.findMany({ orderBy: { nombre: 'asc' } });
+  findAll(clinicaId?: number | null) {
+    return this.prisma.servicios.findMany({
+      where: clinicaId ? { id_clinica: clinicaId } : undefined,
+      orderBy: { nombre: 'asc' },
+    });
   }
 
   async findOne(id: number) {

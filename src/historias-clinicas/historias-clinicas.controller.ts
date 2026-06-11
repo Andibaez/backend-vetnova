@@ -31,13 +31,17 @@ export class HistoriasClinicasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Put('consultas/:id')
-  updateConsulta(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateConsultaDto) {
-    return this.historiasService.updateConsulta(id, dto);
+  updateConsulta(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateConsultaDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.historiasService.updateConsulta(id, dto, user);
   }
 
-  @Roles(ROLES.ADMIN)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Delete('consultas/:id')
-  removeConsulta(@Param('id', ParseIntPipe) id: number) {
-    return this.historiasService.removeConsulta(id);
+  removeConsulta(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.historiasService.removeConsulta(id, user);
   }
 }

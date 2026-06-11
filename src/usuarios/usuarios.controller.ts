@@ -17,8 +17,8 @@ export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
   @Get()
-  findAll(@Query() query: FindUsuariosDto) {
-    return this.usuariosService.findAll(query.rol, { page: query.page, limit: query.limit });
+  findAll(@Query() query: FindUsuariosDto, @CurrentUser() user: JwtPayload) {
+    return this.usuariosService.findAll(query.rol, { page: query.page, limit: query.limit }, user.clinicaId);
   }
 
   @Get(':id')

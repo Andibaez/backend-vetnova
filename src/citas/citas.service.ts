@@ -118,9 +118,10 @@ export class CitasService {
   async findAll(user: JwtPayload, pagination: PaginationDto = {}) {
     const { take, skip } = paginate(pagination.page, pagination.limit);
     const order = [{ fecha: 'asc' as const }, { hora: 'asc' as const }];
+    const clinicaFilter = user.clinicaId ? { id_clinica: user.clinicaId } : {};
 
     if (user.role === ROLES.CLIENTE) {
-      const where = { id_usuario: user.sub };
+      const where = { id_usuario: user.sub, ...clinicaFilter };
       const [citas, total] = await Promise.all([
         this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
         this.prisma.citas.count({ where }),
@@ -131,7 +132,7 @@ export class CitasService {
     if (user.role === ROLES.VETERINARIO) {
       const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
       if (!vet) return paginatedResponse([], 0, 1, pagination.limit ?? 20);
-      const where = { id_veterinario: vet.id_veterinario };
+      const where = { id_veterinario: vet.id_veterinario, ...clinicaFilter };
       const [citas, total] = await Promise.all([
         this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
         this.prisma.citas.count({ where }),
@@ -140,8 +141,8 @@ export class CitasService {
     }
 
     const [citas, total] = await Promise.all([
-      this.prisma.citas.findMany({ include: CITA_INCLUDE, orderBy: order, take, skip }),
-      this.prisma.citas.count(),
+      this.prisma.citas.findMany({ where: clinicaFilter, include: CITA_INCLUDE, orderBy: order, take, skip }),
+      this.prisma.citas.count({ where: clinicaFilter }),
     ]);
     return paginatedResponse(citas.map(flattenVeterinario), total, pagination.page ?? 1, pagination.limit ?? 20);
   }

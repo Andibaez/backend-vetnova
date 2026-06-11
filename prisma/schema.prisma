@@ -1,25 +1,45 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
+model clinicas {
+  id_clinica   Int            @id @default(autoincrement())
+  nombre       String         @db.VarChar(150)
+  slug         String         @unique @db.VarChar(60)
+  direccion    String?
+  telefono     String?        @db.VarChar(20)
+  email        String?        @db.VarChar(100)
+  estado       String         @default("activa") @db.VarChar(20)
+  created_at   DateTime       @default(now()) @db.Timestamp(6)
+  citas        citas[]
+  mascotas     mascotas[]
+  productos    productos[]
+  propietarios propietarios[]
+  servicios    servicios[]
+  usuarios     usuarios[]
+}
+
 model citas {
-  id_cita        Int            @id @default(autoincrement())
-  fecha          DateTime?      @db.Date
-  hora           String?        @db.VarChar(10)
-  estado         String?        @default("pendiente")
-  servicio       String?        @db.VarChar(100)
-  notas          String?
+  id_cita        Int           @id @default(autoincrement())
+  fecha          DateTime?     @db.Date
+  estado         String?       @default("pendiente")
   id_mascota     Int?
   id_usuario     Int?
+  notas          String?
+  servicio       String?       @db.VarChar(100)
+  hora           String?       @db.VarChar(10)
   id_veterinario Int?
-  mascotas       mascotas?      @relation(fields: [id_mascota], references: [id_mascota])
-  usuarios       usuarios?      @relation(fields: [id_usuario], references: [id_usuario])
-  veterinarios   veterinarios?  @relation(fields: [id_veterinario], references: [id_veterinario])
+  id_clinica     Int?
+  clinicas       clinicas?     @relation(fields: [id_clinica], references: [id_clinica])
+  mascotas       mascotas?     @relation(fields: [id_mascota], references: [id_mascota])
+  usuarios       usuarios?     @relation(fields: [id_usuario], references: [id_usuario])
+  veterinarios   veterinarios? @relation(fields: [id_veterinario], references: [id_veterinario])
 }
 
 model consultas {
@@ -81,15 +101,18 @@ model mascotas {
   raza               String?             @db.VarChar(50)
   edad               Int?
   peso               Decimal?            @db.Decimal(5, 2)
-  sexo               String?             @db.VarChar(20)
+  id_propietario     Int?
   fecha_nacimiento   String?             @db.VarChar(10)
   foto               String?
-  id_propietario     Int?
+  sexo               String?             @db.VarChar(20)
+  id_clinica         Int?
   citas              citas[]
   facturas           facturas[]
   historias_clinicas historias_clinicas?
+  clinicas           clinicas?           @relation(fields: [id_clinica], references: [id_clinica])
   propietario        propietarios?       @relation(fields: [id_propietario], references: [id_propietario])
   recordatorios      recordatorios[]
+  registro_vacunas   registro_vacunas[]
 }
 
 model productos {
@@ -97,8 +120,11 @@ model productos {
   nombre                 String?                  @db.VarChar(100)
   tipo                   String?                  @db.VarChar(50)
   precio                 Decimal?                 @db.Decimal(10, 2)
-  stock             Int?
-  detalle_productos detalle_productos[]
+  stock                  Int?
+  id_clinica             Int?
+  detalle_productos      detalle_productos[]
+  movimientos_inventario movimientos_inventario[]
+  clinicas               clinicas?                @relation(fields: [id_clinica], references: [id_clinica])
 }
 
 model propietarios {
@@ -110,8 +136,10 @@ model propietarios {
   documento      String?    @db.VarChar(20)
   estado         String?    @default("activo") @db.VarChar(20)
   id_usuario     Int?       @unique
+  id_clinica     Int?
   facturas       facturas[]
   mascotas       mascotas[]
+  clinicas       clinicas?  @relation(fields: [id_clinica], references: [id_clinica])
   usuarios       usuarios?  @relation(fields: [id_usuario], references: [id_usuario])
 }
 
@@ -127,7 +155,7 @@ model notificaciones {
   id_usuario_destino Int
   id_usuario_origen  Int?
   destino            usuarios  @relation("notificaciones_destino", fields: [id_usuario_destino], references: [id_usuario], onDelete: Cascade)
-  origen             usuarios? @relation("notificaciones_origen", fields: [id_usuario_origen], references: [id_usuario], onDelete: SetNull)
+  origen             usuarios? @relation("notificaciones_origen", fields: [id_usuario_origen], references: [id_usuario])
 }
 
 model recordatorios {
@@ -145,7 +173,6 @@ model recepcionistas {
   usuarios         usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }
 
-
 model roles {
   id_rol   Int        @id @default(autoincrement())
   nombre   String     @unique @db.VarChar(50)
@@ -156,33 +183,62 @@ model servicios {
   id_servicio       Int                 @id @default(autoincrement())
   nombre            String?             @db.VarChar(100)
   precio            Decimal?            @db.Decimal(10, 2)
+  id_clinica        Int?
   detalle_servicios detalle_servicios[]
+  clinicas          clinicas?           @relation(fields: [id_clinica], references: [id_clinica])
 }
 
 model usuarios {
-  id_usuario              Int               @id @default(autoincrement())
-  nombre                  String?           @db.VarChar(100)
-  email                   String            @unique @db.VarChar(100)
-  password                String            @db.VarChar(255)
-  id_rol                  Int?
-  citas                   citas[]
-  consultas               consultas[]
-  propietarios            propietarios?
-  veterinarios            veterinarios?
-  recepcionistas          recepcionistas?
+  id_usuario               Int              @id @default(autoincrement())
+  nombre                   String?          @db.VarChar(100)
+  email                    String           @unique @db.VarChar(100)
+  password                 String           @db.VarChar(255)
+  id_rol                   Int?
+  id_clinica               Int?
+  citas                    citas[]
+  consultas                consultas[]
   notificaciones_recibidas notificaciones[] @relation("notificaciones_destino")
   notificaciones_enviadas  notificaciones[] @relation("notificaciones_origen")
-  roles                   roles?            @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
+  propietarios             propietarios?
+  recepcionistas           recepcionistas?
+  clinicas                 clinicas?        @relation(fields: [id_clinica], references: [id_clinica])
+  roles                    roles?           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
+  veterinarios             veterinarios?
 }
-
 
 model veterinarios {
   id_veterinario   Int      @id @default(autoincrement())
   especialidad     String?  @db.VarChar(100)
   licencia         String?  @db.VarChar(50)
-  telefono         String?  @db.VarChar(20)
-  horario_atencion String?  @db.VarChar(100)
   id_usuario       Int      @unique
+  horario_atencion String?  @db.VarChar(100)
+  telefono         String?  @db.VarChar(20)
   citas            citas[]
   usuarios         usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model movimientos_inventario {
+  id_movimiento Int        @id @default(autoincrement())
+  tipo          String?    @db.VarChar(20)
+  cantidad      Int?
+  fecha         DateTime?  @default(now()) @db.Timestamp(6)
+  id_producto   Int?
+  productos     productos? @relation(fields: [id_producto], references: [id_producto], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model registro_vacunas {
+  id_registro   Int       @id @default(autoincrement())
+  fecha         DateTime? @db.Date
+  proxima_fecha DateTime? @db.Date
+  id_mascota    Int?
+  id_vacuna     Int?
+  mascotas      mascotas? @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
+  vacunas       vacunas?  @relation(fields: [id_vacuna], references: [id_vacuna], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model vacunas {
+  id_vacuna        Int                @id @default(autoincrement())
+  nombre           String?            @db.VarChar(100)
+  frecuencia_dias  Int?
+  registro_vacunas registro_vacunas[]
 }

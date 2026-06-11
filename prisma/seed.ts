@@ -6,8 +6,8 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding roles y usuario administrador...');
 
-  // 1. Crear los 3 roles si no existen
-  const roles = ['Administrador', 'Veterinario', 'Cliente'];
+  // 1. Crear todos los roles si no existen
+  const roles = ['SuperAdministrador', 'Administrador', 'Veterinario', 'Recepcionista', 'Cliente'];
   for (const nombre of roles) {
     await prisma.roles.upsert({
       where: { nombre },
@@ -42,7 +42,24 @@ async function main() {
     console.log(`     Password: ${adminPassword}`);
   }
 
-  // 3. Veterinario de prueba
+  // 3. SuperAdministrador
+  const superAdminEmail = 'superadmin@vetnova.com';
+  const rolSuperAdmin = await prisma.roles.findUnique({ where: { nombre: 'SuperAdministrador' } });
+  const existeSuperAdmin = await prisma.usuarios.findUnique({ where: { email: superAdminEmail } });
+  if (!existeSuperAdmin && rolSuperAdmin) {
+    const hashed = await bcrypt.hash('Super123!', 10);
+    await prisma.usuarios.create({
+      data: {
+        nombre: 'Super Administrador',
+        email: superAdminEmail,
+        password: hashed,
+        id_rol: rolSuperAdmin.id_rol,
+      },
+    });
+    console.log(`  ✅ SuperAdmin creado: ${superAdminEmail} / Super123!`);
+  }
+
+  // 4. Veterinario de prueba
   const vetEmail = 'vet@vetnova.com';
   const rolVet = await prisma.roles.findUnique({ where: { nombre: 'Veterinario' } });
   const existeVet = await prisma.usuarios.findUnique({ where: { email: vetEmail } });

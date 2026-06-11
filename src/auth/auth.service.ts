@@ -62,7 +62,7 @@ export class AuthService {
     await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName);
 
     const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName);
-    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName) };
+    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
   }
 
   async login(dto: LoginDto) {
@@ -87,7 +87,7 @@ export class AuthService {
     await this.ensureRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName);
 
     const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName);
-    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName) };
+    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
   }
 
   async googleAuth(dto: GoogleAuthDto) {
@@ -126,7 +126,7 @@ export class AuthService {
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
     const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName);
-    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName) };
+    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
   }
 
   async me(userId: number) {
@@ -136,7 +136,7 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException('Usuario no encontrado.');
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
-    return this.sanitize(user.id_usuario, user.nombre!, user.email, roleName);
+    return this.sanitize(user.id_usuario, user.nombre!, user.email, roleName, user.id_clinica);
   }
 
   private async createRoleProfile(
@@ -237,7 +237,7 @@ export class AuthService {
     return this.jwt.sign(payload);
   }
 
-  private sanitize(id: number, name: string, email: string, role: RoleName) {
-    return { id, name, email, role };
+  private sanitize(id: number, name: string, email: string, role: RoleName, clinicaId: number | null = null) {
+    return { id, name, email, role, clinicaId };
   }
 }

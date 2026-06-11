@@ -16,6 +16,7 @@ import { VeterinariosModule } from './veterinarios/veterinarios.module';
 import { RecordatoriosModule } from './recordatorios/recordatorios.module';
 import { HistoriasClinicasModule } from './historias-clinicas/historias-clinicas.module';
 import { FacturasModule } from './facturas/facturas.module';
+import { ClinicasModule } from './clinicas/clinicas.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 
@@ -36,6 +37,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
     RecordatoriosModule,
     HistoriasClinicasModule,
     FacturasModule,
+    ClinicasModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

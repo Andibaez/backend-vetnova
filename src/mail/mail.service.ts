@@ -20,7 +20,7 @@ export class MailService {
   async sendPasswordReset(to: string, nombre: string, resetLink: string) {
     const user = this.config.getOrThrow<string>('GMAIL_USER');
     try {
-      await transporter.sendMail({
+      await this.transporter.sendMail({
         from: `"VetNova" <${user}>`,
         to,
         subject: 'Recuperación de contraseña — VetNova',

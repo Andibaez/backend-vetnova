@@ -17,30 +17,30 @@ export class ServiciosController {
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(@CurrentUser() user: JwtPayload) {
-    return this.serviciosService.findAll(user.clinicaId);
+    return this.serviciosService.findAll(user);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.serviciosService.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.serviciosService.findOne(id, user);
   }
 
   @Roles(ROLES.ADMIN)
   @Post()
-  create(@Body() dto: CreateServicioDto) {
-    return this.serviciosService.create(dto);
+  create(@Body() dto: CreateServicioDto, @CurrentUser() user: JwtPayload) {
+    return this.serviciosService.create(dto, user);
   }
 
   @Roles(ROLES.ADMIN)
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateServicioDto) {
-    return this.serviciosService.update(id, dto);
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateServicioDto, @CurrentUser() user: JwtPayload) {
+    return this.serviciosService.update(id, dto, user);
   }
 
   @Roles(ROLES.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.serviciosService.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.serviciosService.remove(id, user);
   }
 }

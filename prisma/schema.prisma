@@ -191,7 +191,7 @@ model servicios {
 model usuarios {
   id_usuario               Int              @id @default(autoincrement())
   nombre                   String?          @db.VarChar(100)
-  email                    String           @unique @db.VarChar(100)
+  email                    String           @db.VarChar(100)
   password                 String           @db.VarChar(255)
   id_rol                   Int?
   id_clinica               Int?
@@ -204,6 +204,8 @@ model usuarios {
   clinicas                 clinicas?        @relation(fields: [id_clinica], references: [id_clinica])
   roles                    roles?           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
   veterinarios             veterinarios?
+
+  @@unique([email, id_clinica])
 }
 
 model veterinarios {

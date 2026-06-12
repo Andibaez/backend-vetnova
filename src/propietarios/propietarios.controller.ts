@@ -16,8 +16,8 @@ export class PropietariosController {
 
   @Roles(ROLES.ADMIN)
   @Post()
-  create(@Body() dto: CreatePropietarioDto) {
-    return this.propietariosService.create(dto);
+  create(@Body() dto: CreatePropietarioDto, @CurrentUser() user: JwtPayload) {
+    return this.propietariosService.create(dto, user);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
@@ -47,7 +47,7 @@ export class PropietariosController {
 
   @Roles(ROLES.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.propietariosService.deletePropietario(id);
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.propietariosService.deletePropietario(id, user);
   }
 }

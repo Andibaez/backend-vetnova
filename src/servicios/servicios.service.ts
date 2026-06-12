@@ -2,35 +2,41 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateServicioDto } from './dto/create-servicio.dto';
 import { UpdateServicioDto } from './dto/update-servicio.dto';
+import { JwtPayload } from '../common/types/jwt-payload.type';
+import { ROLES } from '../common/constants/roles.constant';
+import { tenantWhere } from '../common/utils/tenant.util';
 
 @Injectable()
 export class ServiciosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(clinicaId?: number | null) {
+  findAll(user: JwtPayload) {
     return this.prisma.servicios.findMany({
-      where: clinicaId ? { id_clinica: clinicaId } : undefined,
+      where: { ...tenantWhere(user) },
       orderBy: { nombre: 'asc' },
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user: JwtPayload) {
     const servicio = await this.prisma.servicios.findUnique({ where: { id_servicio: id } });
     if (!servicio) throw new NotFoundException('Servicio no encontrado.');
+    if (user.role !== ROLES.SUPER_ADMIN && servicio.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Servicio no encontrado.');
+    }
     return servicio;
   }
 
-  create(dto: CreateServicioDto) {
-    return this.prisma.servicios.create({ data: dto });
+  create(dto: CreateServicioDto, user: JwtPayload) {
+    return this.prisma.servicios.create({ data: { ...dto, id_clinica: user.clinicaId } });
   }
 
-  async update(id: number, dto: UpdateServicioDto) {
-    await this.findOne(id);
+  async update(id: number, dto: UpdateServicioDto, user: JwtPayload) {
+    await this.findOne(id, user);
     return this.prisma.servicios.update({ where: { id_servicio: id }, data: dto });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
+  async remove(id: number, user: JwtPayload) {
+    await this.findOne(id, user);
     await this.prisma.$transaction([
       this.prisma.detalle_servicios.deleteMany({ where: { id_servicio: id } }),
       this.prisma.servicios.delete({ where: { id_servicio: id } }),

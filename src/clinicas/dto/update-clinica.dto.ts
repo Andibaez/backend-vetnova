@@ -3,7 +3,7 @@ import { IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator'
 export class UpdateClinicaDto {
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(150)
   nombre?: string;
 
   @IsOptional()
@@ -17,6 +17,7 @@ export class UpdateClinicaDto {
 
   @IsOptional()
   @IsEmail()
+  @MaxLength(100)
   email?: string;
 
   @IsOptional()

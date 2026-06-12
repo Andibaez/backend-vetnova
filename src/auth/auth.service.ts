@@ -3,14 +3,15 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
@@ -31,20 +32,28 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly mail: MailService,
+    private readonly notificaciones: NotificacionesService,
   ) {
     this.googleClient = new OAuth2Client(config.get('GOOGLE_CLIENT_ID'));
   }
 
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
+
+    // El registro público nunca puede crear Administradores ni SuperAdministradores
+    const roleName: RoleName =
+      dto.rol && dto.rol !== ROLES.ADMIN && dto.rol !== ROLES.SUPER_ADMIN
+        ? (dto.rol as RoleName)
+        : ROLES.CLIENTE;
+
+    const clinica = await this.resolveClinicaBySlug(dto.clinicaSlug);
+
     const existing = await this.prisma.usuarios.findUnique({
-      where: { email: normalizedEmail },
+      where: { email_id_clinica: { email: normalizedEmail, id_clinica: clinica.id_clinica } },
     });
     if (existing) {
-      throw new ConflictException('Ya existe una cuenta con ese correo.');
+      throw new ConflictException('Ya existe una cuenta con ese correo en esta clínica.');
     }
-
-    const roleName: RoleName = ROLES.CLIENTE;
 
     const rol = await this.findOrCreateRole(roleName);
     const hashed = await bcrypt.hash(dto.password, 10);
@@ -55,39 +64,84 @@ export class AuthService {
         email: normalizedEmail,
         password: hashed,
         id_rol: rol.id_rol,
+        id_clinica: clinica.id_clinica,
       },
       include: { roles: true },
     });
 
-    await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName);
+    await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName, clinica.id_clinica);
 
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
-    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
+    if (roleName === ROLES.CLIENTE) {
+      await this.notificaciones.crearParaUsuario(
+        user.id_usuario,
+        'Bienvenido a VetNova',
+        `Hola ${user.nombre}, tu cuenta fue creada correctamente en ${clinica.nombre}. ¡Gracias por registrarte!`,
+        'bienvenida',
+      );
+      await this.notificaciones.crearParaAdmins(
+        'Nuevo cliente registrado',
+        `${user.nombre} (${normalizedEmail}) se registró como nuevo cliente.`,
+        'nuevo_cliente',
+        clinica.id_clinica,
+        user.id_usuario,
+        user.id_usuario,
+        'usuario',
+      );
+    }
+
+    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, clinica.id_clinica);
+    return {
+      token,
+      user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, clinica.id_clinica, clinica.nombre),
+    };
   }
 
   async login(dto: LoginDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
-    const user = await this.prisma.usuarios.findUnique({
+    const candidates = await this.prisma.usuarios.findMany({
       where: { email: normalizedEmail },
-      include: { roles: true },
+      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
     });
 
-    if (!user) {
+    if (candidates.length === 0) {
       throw new UnauthorizedException('No existe una cuenta con ese correo.');
     }
 
-    const valid = await bcrypt.compare(dto.password, user.password);
-    if (!valid) {
+    const matches: typeof candidates = [];
+    for (const candidate of candidates) {
+      if (await bcrypt.compare(dto.password, candidate.password)) matches.push(candidate);
+    }
+
+    if (matches.length === 0) {
       throw new UnauthorizedException('Contraseña incorrecta.');
+    }
+
+    let user = matches[0];
+    if (matches.length > 1) {
+      if (dto.clinicaSlug) {
+        const selected = matches.find((m) => m.clinicas?.slug === dto.clinicaSlug);
+        if (!selected) {
+          throw new UnauthorizedException('No tienes una cuenta en esa clínica.');
+        }
+        user = selected;
+      } else {
+        return {
+          requiresClinicSelection: true as const,
+          clinicas: matches.map((m) => ({ nombre: m.clinicas?.nombre ?? '', slug: m.clinicas?.slug ?? '' })),
+        };
+      }
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
 
     // Crear perfil si por alguna razón no existe aún
-    await this.ensureRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName);
+    await this.ensureRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName, user.id_clinica);
 
     const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
-    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
+    return {
+      token,
+      user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica, user.clinicas?.nombre),
+    };
   }
 
   async googleAuth(dto: GoogleAuthDto) {
@@ -105,38 +159,73 @@ export class AuthService {
     if (!payload?.email) throw new UnauthorizedException('Token de Google sin email.');
 
     const normalizedEmail = payload.email.trim().toLowerCase();
-    let user = await this.prisma.usuarios.findUnique({
+    const candidates = await this.prisma.usuarios.findMany({
       where: { email: normalizedEmail },
-      include: { roles: true },
+      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
     });
 
+    let user = dto.clinicaSlug
+      ? candidates.find((c) => c.clinicas?.slug === dto.clinicaSlug)
+      : undefined;
+
     if (!user) {
-      const rol = await this.findOrCreateRole(ROLES.CLIENTE);
-      user = await this.prisma.usuarios.create({
-        data: {
-          nombre: (payload.name ?? normalizedEmail).trim(),
-          email: normalizedEmail,
-          password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
-          id_rol: rol.id_rol,
-        },
-        include: { roles: true },
-      });
-      await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, ROLES.CLIENTE);
+      if (candidates.length > 0 && !dto.clinicaSlug) {
+        if (candidates.length === 1) {
+          user = candidates[0];
+        } else {
+          return {
+            requiresClinicSelection: true as const,
+            clinicas: candidates.map((c) => ({ nombre: c.clinicas?.nombre ?? '', slug: c.clinicas?.slug ?? '' })),
+          };
+        }
+      } else {
+        const clinica = await this.resolveClinicaBySlug(dto.clinicaSlug);
+        const rol = await this.findOrCreateRole(ROLES.CLIENTE);
+        user = await this.prisma.usuarios.create({
+          data: {
+            nombre: (payload.name ?? normalizedEmail).trim(),
+            email: normalizedEmail,
+            password: await bcrypt.hash(Math.random().toString(36), 10),
+            id_rol: rol.id_rol,
+            id_clinica: clinica.id_clinica,
+          },
+          include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+        });
+        await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, ROLES.CLIENTE, clinica.id_clinica);
+      }
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
     const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
-    return { token, user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica) };
+    return {
+      token,
+      user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica, user.clinicas?.nombre),
+    };
   }
 
   async me(userId: number) {
     const user = await this.prisma.usuarios.findUnique({
       where: { id_usuario: userId },
-      include: { roles: true },
+      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true } } },
     });
     if (!user) throw new NotFoundException('Usuario no encontrado.');
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
-    return this.sanitize(user.id_usuario, user.nombre!, user.email, roleName, user.id_clinica);
+    return this.sanitize(user.id_usuario, user.nombre!, user.email, roleName, user.id_clinica, user.clinicas?.nombre);
+  }
+
+  /**
+   * Resuelve la clínica asociada a un registro a partir de su slug.
+   * El SuperAdministrador no pertenece a ninguna clínica (slug ausente).
+   */
+  private async resolveClinicaBySlug(slug?: string): Promise<{ id_clinica: number; nombre: string }> {
+    if (!slug) {
+      throw new BadRequestException('Debes registrarte a través del enlace de tu clínica.');
+    }
+    const clinica = await this.prisma.clinicas.findUnique({ where: { slug } });
+    if (!clinica || clinica.estado !== 'activa') {
+      throw new BadRequestException('Enlace de registro de clínica inválido o inactivo.');
+    }
+    return { id_clinica: clinica.id_clinica, nombre: clinica.nombre };
   }
 
   private async createRoleProfile(
@@ -144,10 +233,11 @@ export class AuthService {
     nombre: string | null,
     email: string,
     role: RoleName,
+    id_clinica: number | null,
   ) {
     if (role === ROLES.CLIENTE) {
       await this.prisma.propietarios.create({
-        data: { nombre, email, id_usuario },
+        data: { nombre, email, id_usuario, id_clinica },
       });
     } else if (role === ROLES.VETERINARIO) {
       await this.prisma.veterinarios.create({ data: { id_usuario } });
@@ -159,10 +249,11 @@ export class AuthService {
     nombre: string | null,
     email: string,
     role: RoleName,
+    id_clinica: number | null,
   ) {
     if (role === ROLES.CLIENTE) {
       const exists = await this.prisma.propietarios.findUnique({ where: { id_usuario } });
-      if (!exists) await this.prisma.propietarios.create({ data: { nombre, email, id_usuario } });
+      if (!exists) await this.prisma.propietarios.create({ data: { nombre, email, id_usuario, id_clinica } });
     } else if (role === ROLES.VETERINARIO) {
       const exists = await this.prisma.veterinarios.findUnique({ where: { id_usuario } });
       if (!exists) await this.prisma.veterinarios.create({ data: { id_usuario } });
@@ -171,7 +262,7 @@ export class AuthService {
 
   async forgotPassword(email: string): Promise<{ message: string }> {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = await this.prisma.usuarios.findUnique({
+    const user = await this.prisma.usuarios.findFirst({
       where: { email: normalizedEmail },
     });
 
@@ -237,7 +328,14 @@ export class AuthService {
     return this.jwt.sign(payload);
   }
 
-  private sanitize(id: number, name: string, email: string, role: RoleName, clinicaId: number | null = null) {
-    return { id, name, email, role, clinicaId };
+  private sanitize(
+    id: number,
+    name: string,
+    email: string,
+    role: RoleName,
+    clinicaId: number | null = null,
+    clinicaNombre?: string,
+  ) {
+    return { id, name, email, role, clinicaId, clinicaNombre };
   }
 }

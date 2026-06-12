@@ -49,7 +49,7 @@ export class MascotasController {
 
   @Roles(ROLES.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.mascotasService.deleteMascota(id);
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.mascotasService.deleteMascota(id, user);
   }
 }

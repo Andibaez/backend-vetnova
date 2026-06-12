@@ -1,4 +1,5 @@
-import { IsEmail, IsString, Matches, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { ROLES_ARRAY } from '../../common/constants/roles.constant';
 
 export class RegisterDto {
   @IsString()
@@ -13,4 +14,12 @@ export class RegisterDto {
     message: 'La contraseña debe tener al menos una mayúscula, un número y un carácter especial.',
   })
   password: string;
+
+  @IsOptional()
+  @IsEnum(ROLES_ARRAY, { message: `rol debe ser uno de: ${ROLES_ARRAY.join(', ')}` })
+  rol?: string;
+
+  @IsOptional()
+  @IsString()
+  clinicaSlug?: string;
 }

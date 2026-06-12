@@ -1,16 +1,30 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
 import { UpdateClinicaDto } from './dto/update-clinica.dto';
 import { ROLES } from '../common/constants/roles.constant';
-import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class ClinicasService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
+  async findAll() {
     return this.prisma.clinicas.findMany({ orderBy: { nombre: 'asc' } });
+  }
+
+  async findOne(id: number) {
+    const clinica = await this.prisma.clinicas.findUnique({ where: { id_clinica: id } });
+    if (!clinica) throw new NotFoundException('Clínica no encontrada.');
+    return clinica;
+  }
+
+  async findActivas() {
+    return this.prisma.clinicas.findMany({
+      where: { estado: 'activa' },
+      select: { nombre: true, slug: true },
+      orderBy: { nombre: 'asc' },
+    });
   }
 
   async findBySlug(slug: string) {
@@ -23,11 +37,11 @@ export class ClinicasService {
   }
 
   async create(dto: CreateClinicaDto) {
-    const slugExiste = await this.prisma.clinicas.findUnique({ where: { slug: dto.slug } });
-    if (slugExiste) throw new ConflictException('Ya existe una clínica con ese slug.');
+    const existingSlug = await this.prisma.clinicas.findUnique({ where: { slug: dto.slug } });
+    if (existingSlug) throw new ConflictException('Ya existe una clínica con ese slug.');
 
-    const emailExiste = await this.prisma.usuarios.findUnique({ where: { email: dto.adminEmail.toLowerCase() } });
-    if (emailExiste) throw new ConflictException('Ya existe una cuenta con ese correo de administrador.');
+    const adminEmail = dto.adminEmail.trim().toLowerCase();
+    const hashed = await bcrypt.hash(dto.adminPassword, 10);
 
     return this.prisma.$transaction(async (tx) => {
       const clinica = await tx.clinicas.create({
@@ -40,15 +54,16 @@ export class ClinicasService {
         },
       });
 
-      const rol = await tx.roles.findUnique({ where: { nombre: ROLES.ADMIN } });
-      const id_rol = rol?.id_rol ?? (await tx.roles.create({ data: { nombre: ROLES.ADMIN } })).id_rol;
+      let rolAdmin = await tx.roles.findUnique({ where: { nombre: ROLES.ADMIN } });
+      if (!rolAdmin) rolAdmin = await tx.roles.create({ data: { nombre: ROLES.ADMIN } });
 
       await tx.usuarios.create({
         data: {
           nombre: dto.adminNombre.trim(),
-          email: dto.adminEmail.trim().toLowerCase(),
-          password: await bcrypt.hash(dto.adminPassword, 10),
-          id_rol,
+          email: adminEmail,
+          password: hashed,
+          id_rol: rolAdmin.id_rol,
+          id_clinica: clinica.id_clinica,
         },
       });
 
@@ -57,8 +72,10 @@ export class ClinicasService {
   }
 
   async update(id: number, dto: UpdateClinicaDto) {
-    const clinica = await this.prisma.clinicas.findUnique({ where: { id_clinica: id } });
-    if (!clinica) throw new NotFoundException('Clínica no encontrada.');
-    return this.prisma.clinicas.update({ where: { id_clinica: id }, data: dto });
+    await this.findOne(id);
+    return this.prisma.clinicas.update({
+      where: { id_clinica: id },
+      data: dto,
+    });
   }
 }

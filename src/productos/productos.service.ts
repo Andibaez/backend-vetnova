@@ -2,37 +2,49 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
+import { JwtPayload } from '../common/types/jwt-payload.type';
+import { ROLES } from '../common/constants/roles.constant';
+import { tenantWhere } from '../common/utils/tenant.util';
 
 @Injectable()
 export class ProductosService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll(clinicaId?: number | null) {
+  findAll(user: JwtPayload) {
     return this.prisma.productos.findMany({
-      where: clinicaId ? { id_clinica: clinicaId } : undefined,
+      where: { ...tenantWhere(user) },
       orderBy: { nombre: 'asc' },
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, user: JwtPayload) {
     const producto = await this.prisma.productos.findUnique({ where: { id_producto: id } });
     if (!producto) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== ROLES.SUPER_ADMIN && producto.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Producto no encontrado');
+    }
     return producto;
   }
 
-  create(dto: CreateProductoDto) {
-    return this.prisma.productos.create({ data: dto });
+  create(dto: CreateProductoDto, user: JwtPayload) {
+    return this.prisma.productos.create({ data: { ...dto, id_clinica: user.clinicaId } });
   }
 
-  async update(id: number, dto: UpdateProductoDto) {
+  async update(id: number, dto: UpdateProductoDto, user: JwtPayload) {
     const producto = await this.prisma.productos.findUnique({ where: { id_producto: id } });
     if (!producto) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== ROLES.SUPER_ADMIN && producto.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Producto no encontrado');
+    }
     return this.prisma.productos.update({ where: { id_producto: id }, data: dto });
   }
 
-  async remove(id: number) {
+  async remove(id: number, user: JwtPayload) {
     const producto = await this.prisma.productos.findUnique({ where: { id_producto: id } });
     if (!producto) throw new NotFoundException('Producto no encontrado');
+    if (user.role !== ROLES.SUPER_ADMIN && producto.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Producto no encontrado');
+    }
     await this.prisma.$transaction([
       this.prisma.detalle_productos.deleteMany({ where: { id_producto: id } }),
       this.prisma.movimientos_inventario.deleteMany({ where: { id_producto: id } }),

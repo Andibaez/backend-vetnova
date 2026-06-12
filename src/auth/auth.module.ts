@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { MailModule } from '../mail/mail.module';
+import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 
@@ -12,6 +13,7 @@ import { RolesGuard } from './guards/roles.guard';
   imports: [
     PrismaModule,
     MailModule,
+    NotificacionesModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

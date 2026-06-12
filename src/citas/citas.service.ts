@@ -5,6 +5,7 @@ import { CreateCitaDto } from './dto/create-cita.dto';
 import { UpdateCitaDto } from './dto/update-cita.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
+import { tenantWhere } from '../common/utils/tenant.util';
 import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagination.dto';
 
 const CITA_INCLUDE = {
@@ -76,6 +77,7 @@ export class CitasService {
         id_mascota: dto.id_mascota,
         id_usuario,
         id_veterinario,
+        id_clinica: user.clinicaId,
       },
       include: CITA_INCLUDE,
     });
@@ -87,6 +89,7 @@ export class CitasService {
         'Nueva cita solicitada',
         `${user.name} ha solicitado una cita para ${mascotaNombre} el ${dto.fecha} a las ${dto.hora}.`,
         'nueva_cita',
+        user.clinicaId,
         user.sub,
         cita.id_cita,
         'cita',
@@ -118,10 +121,9 @@ export class CitasService {
   async findAll(user: JwtPayload, pagination: PaginationDto = {}) {
     const { take, skip } = paginate(pagination.page, pagination.limit);
     const order = [{ fecha: 'asc' as const }, { hora: 'asc' as const }];
-    const clinicaFilter = user.clinicaId ? { id_clinica: user.clinicaId } : {};
 
     if (user.role === ROLES.CLIENTE) {
-      const where = { id_usuario: user.sub, ...clinicaFilter };
+      const where = { id_usuario: user.sub, ...tenantWhere(user) };
       const [citas, total] = await Promise.all([
         this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
         this.prisma.citas.count({ where }),
@@ -132,7 +134,7 @@ export class CitasService {
     if (user.role === ROLES.VETERINARIO) {
       const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
       if (!vet) return paginatedResponse([], 0, 1, pagination.limit ?? 20);
-      const where = { id_veterinario: vet.id_veterinario, ...clinicaFilter };
+      const where = { id_veterinario: vet.id_veterinario, ...tenantWhere(user) };
       const [citas, total] = await Promise.all([
         this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
         this.prisma.citas.count({ where }),
@@ -140,9 +142,10 @@ export class CitasService {
       return paginatedResponse(citas.map(flattenVeterinario), total, pagination.page ?? 1, pagination.limit ?? 20);
     }
 
+    const where = { ...tenantWhere(user) };
     const [citas, total] = await Promise.all([
-      this.prisma.citas.findMany({ where: clinicaFilter, include: CITA_INCLUDE, orderBy: order, take, skip }),
-      this.prisma.citas.count({ where: clinicaFilter }),
+      this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
+      this.prisma.citas.count({ where }),
     ]);
     return paginatedResponse(citas.map(flattenVeterinario), total, pagination.page ?? 1, pagination.limit ?? 20);
   }
@@ -153,6 +156,9 @@ export class CitasService {
       include: CITA_INCLUDE,
     });
     if (!cita) throw new NotFoundException('Cita no encontrada');
+    if (user.role !== ROLES.SUPER_ADMIN && cita.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Cita no encontrada');
+    }
 
     if (user.role === ROLES.CLIENTE && cita.id_usuario !== user.sub) {
       throw new ForbiddenException('No tienes permiso para ver esta cita.');
@@ -167,8 +173,14 @@ export class CitasService {
   }
 
   async update(id: number, dto: UpdateCitaDto, user: JwtPayload) {
-    const existing = await this.prisma.citas.findUnique({ where: { id_cita: id } });
+    const existing = await this.prisma.citas.findUnique({
+      where: { id_cita: id },
+      include: { mascotas: true },
+    });
     if (!existing) throw new NotFoundException('Cita no existe');
+    if (user.role !== ROLES.SUPER_ADMIN && existing.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Cita no existe');
+    }
 
     if (user.role === ROLES.VETERINARIO) {
       const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
@@ -215,26 +227,77 @@ export class CitasService {
       include: CITA_INCLUDE,
     });
 
-    // Notificar al cliente cuando su cita pasa a confirmada
-    if (data.estado === 'confirmada' && existing.id_usuario) {
-      const mascotaNombre = (cita as any).mascotas?.nombre ?? 'su mascota';
-      await this.notificaciones.crearParaUsuario(
-        existing.id_usuario,
-        'Cita confirmada',
-        `Tu cita para ${mascotaNombre} ha sido confirmada.`,
-        'cita_confirmada',
-        user.sub,
-        cita.id_cita,
-        'cita',
-      );
-    }
+    await this.notificarActualizacionCita(existing, cita, user);
 
     return flattenVeterinario(cita);
   }
 
-  async remove(id: number) {
+  private async notificarActualizacionCita(
+    existing: {
+      id_usuario: number | null;
+      estado: string | null;
+      fecha: Date | null;
+      hora: string | null;
+      mascotas: { nombre: string | null } | null;
+    },
+    cita: { id_cita: number; estado: string | null; fecha: Date | null; hora: string | null },
+    user: JwtPayload,
+  ) {
+    if (!existing.id_usuario || !cita.estado || !cita.fecha || !cita.hora) return;
+
+    const estadoCambio = cita.estado !== existing.estado;
+    const fechaHoraCambio =
+      cita.fecha.getTime() !== existing.fecha?.getTime() || cita.hora !== existing.hora;
+
+    if (!estadoCambio && !fechaHoraCambio) return;
+
+    const mascotaNombre = existing.mascotas?.nombre ?? 'tu mascota';
+    const fechaTexto = cita.fecha.toISOString().slice(0, 10);
+    const horaTexto = cita.hora;
+
+    const mensajesEstado: Record<string, string> = {
+      confirmada: `Tu cita para ${mascotaNombre} fue confirmada para el ${fechaTexto} a las ${horaTexto}.`,
+      cancelada: `Tu cita para ${mascotaNombre} del ${fechaTexto} fue cancelada.`,
+      reprogramada: `Tu cita para ${mascotaNombre} fue reprogramada para el ${fechaTexto} a las ${horaTexto}.`,
+      finalizada: `La consulta de ${mascotaNombre} fue finalizada.`,
+      'en espera': `${mascotaNombre} se encuentra en sala de espera para su cita.`,
+      'en atención': `${mascotaNombre} está siendo atendido/a en este momento.`,
+      'no asistió': `${mascotaNombre} no asistió a la cita programada del ${fechaTexto}.`,
+      pendiente: `Tu cita para ${mascotaNombre} está pendiente de confirmación.`,
+    };
+
+    let titulo = 'Actualización de tu cita';
+    let mensaje: string;
+
+    if (estadoCambio) {
+      mensaje =
+        mensajesEstado[cita.estado] ??
+        `El estado de tu cita para ${mascotaNombre} cambió a "${cita.estado}".`;
+      if (fechaHoraCambio && cita.estado !== 'reprogramada') {
+        mensaje += ` Nueva fecha: ${fechaTexto} a las ${horaTexto}.`;
+      }
+    } else {
+      titulo = 'Tu cita fue reprogramada';
+      mensaje = `Tu cita para ${mascotaNombre} fue reprogramada para el ${fechaTexto} a las ${horaTexto}.`;
+    }
+
+    await this.notificaciones.crearParaUsuario(
+      existing.id_usuario,
+      titulo,
+      mensaje,
+      'cita_actualizada',
+      user.sub,
+      cita.id_cita,
+      'cita',
+    );
+  }
+
+  async remove(id: number, user: JwtPayload) {
     const cita = await this.prisma.citas.findUnique({ where: { id_cita: id } });
     if (!cita) throw new NotFoundException('Cita no existe');
+    if (user.role !== ROLES.SUPER_ADMIN && cita.id_clinica !== user.clinicaId) {
+      throw new NotFoundException('Cita no existe');
+    }
     return this.prisma.citas.delete({ where: { id_cita: id } });
   }
 }

@@ -2,11 +2,14 @@ import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'cl
 
 export class CreateClinicaDto {
   @IsString()
-  @MaxLength(100)
+  @MaxLength(150)
   nombre: string;
 
   @IsString()
-  @MaxLength(100)
+  @MaxLength(60)
+  @Matches(/^[a-z0-9-]+$/, {
+    message: 'slug solo puede contener minúsculas, números y guiones.',
+  })
   slug: string;
 
   @IsOptional()
@@ -20,9 +23,9 @@ export class CreateClinicaDto {
 
   @IsOptional()
   @IsEmail()
+  @MaxLength(100)
   email?: string;
 
-  // Admin inicial
   @IsString()
   adminNombre: string;
 

@@ -18,17 +18,17 @@ export class UsuariosController {
 
   @Get()
   findAll(@Query() query: FindUsuariosDto, @CurrentUser() user: JwtPayload) {
-    return this.usuariosService.findAll(query.rol, { page: query.page, limit: query.limit }, user.clinicaId);
+    return this.usuariosService.findAll(user, query.rol, { page: query.page, limit: query.limit });
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.usuariosService.findOne(id);
+  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.usuariosService.findOne(id, user);
   }
 
   @Post()
-  create(@Body() dto: CreateUsuarioDto) {
-    return this.usuariosService.create(dto);
+  create(@Body() dto: CreateUsuarioDto, @CurrentUser() user: JwtPayload) {
+    return this.usuariosService.create(dto, user);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
@@ -42,7 +42,7 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.usuariosService.remove(id);
+  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.usuariosService.remove(id, user);
   }
 }

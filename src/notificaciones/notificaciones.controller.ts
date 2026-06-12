@@ -1,9 +1,7 @@
 import { Controller, Get, Patch, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { NotificacionesService } from './notificaciones.service';
-import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
 @ApiBearerAuth()
@@ -12,7 +10,7 @@ import { JwtPayload } from '../common/types/jwt-payload.type';
 export class NotificacionesController {
   constructor(private readonly notificacionesService: NotificacionesService) {}
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
+  // Sin @Roles: cualquier usuario autenticado consulta sus propias notificaciones (filtradas por user.sub).
   @Get()
   findAll(
     @CurrentUser() user: JwtPayload,
@@ -21,19 +19,16 @@ export class NotificacionesController {
     return this.notificacionesService.findAll(user, noLeidas === 'true');
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get('count')
   count(@CurrentUser() user: JwtPayload) {
     return this.notificacionesService.count(user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Patch('leer-todas')
   marcarTodasLeidas(@CurrentUser() user: JwtPayload) {
     return this.notificacionesService.marcarTodasLeidas(user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Patch(':id/leer')
   marcarLeida(
     @Param('id', ParseIntPipe) id: number,

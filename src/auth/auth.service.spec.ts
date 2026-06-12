@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('google-auth-library', () => ({
@@ -16,6 +17,8 @@ jest.mock('google-auth-library', () => ({
 const mockPrisma = {
   usuarios: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -31,7 +34,12 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
   },
+  clinicas: {
+    findUnique: jest.fn(),
+  },
 };
+
+const clinicaTest = { id_clinica: 1, nombre: 'Clínica Test', slug: 'test-clinic', estado: 'activa' };
 
 const mockJwt = {
   sign: jest.fn().mockReturnValue('mock.jwt.token'),
@@ -46,6 +54,11 @@ const mockConfig = {
 
 const mockMail = { sendPasswordReset: jest.fn() };
 
+const mockNotificaciones = {
+  crearParaUsuario: jest.fn(),
+  crearParaAdmins: jest.fn(),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -57,6 +70,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: MailService, useValue: mockMail },
+        { provide: NotificacionesService, useValue: mockNotificaciones },
       ],
     }).compile();
 
@@ -67,54 +81,64 @@ describe('AuthService', () => {
   // ── register ────────────────────────────────────────────────
 
   describe('register', () => {
-    it('lanza ConflictException si el email ya existe', async () => {
+    it('lanza ConflictException si el email ya existe en esa clínica', async () => {
+      mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
       mockPrisma.usuarios.findUnique.mockResolvedValue({ id_usuario: 1, email: 'a@b.com' });
       await expect(
-        service.register({ nombre: 'Test', email: 'a@b.com', password: 'Pass1@test' }),
+        service.register({ nombre: 'Test', email: 'a@b.com', password: 'Pass1@test', clinicaSlug: 'test-clinic' }),
       ).rejects.toThrow(ConflictException);
     });
 
     it('siempre asigna rol Cliente sin importar lo que venga', async () => {
+      mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
       mockPrisma.roles.findUnique.mockResolvedValue({ id_rol: 3, nombre: 'Cliente' });
       mockPrisma.usuarios.create.mockResolvedValue({
-        id_usuario: 1, nombre: 'Test', email: 'a@b.com',
+        id_usuario: 1, nombre: 'Test', email: 'a@b.com', id_clinica: 1,
         roles: { nombre: 'Cliente' },
       });
       mockPrisma.propietarios.create.mockResolvedValue({});
 
-      const result = await service.register({ nombre: 'Test', email: 'a@b.com', password: 'Pass1@test' });
+      const result = await service.register({
+        nombre: 'Test', email: 'a@b.com', password: 'Pass1@test', clinicaSlug: 'test-clinic',
+      });
 
       expect(result.user.role).toBe('Cliente');
       expect(mockPrisma.roles.findUnique).toHaveBeenCalledWith({ where: { nombre: 'Cliente' } });
     });
 
     it('normaliza el email a minúsculas', async () => {
+      mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
       mockPrisma.roles.findUnique.mockResolvedValue({ id_rol: 3, nombre: 'Cliente' });
       mockPrisma.usuarios.create.mockResolvedValue({
-        id_usuario: 1, nombre: 'Test', email: 'test@example.com',
+        id_usuario: 1, nombre: 'Test', email: 'test@example.com', id_clinica: 1,
         roles: { nombre: 'Cliente' },
       });
       mockPrisma.propietarios.create.mockResolvedValue({});
 
-      await service.register({ nombre: 'Test', email: 'TEST@EXAMPLE.COM', password: 'Pass1@test' });
+      await service.register({
+        nombre: 'Test', email: 'TEST@EXAMPLE.COM', password: 'Pass1@test', clinicaSlug: 'test-clinic',
+      });
 
       expect(mockPrisma.usuarios.findUnique).toHaveBeenCalledWith({
-        where: { email: 'test@example.com' },
+        where: { email_id_clinica: { email: 'test@example.com', id_clinica: 1 } },
       });
     });
 
     it('crea perfil de propietario para rol Cliente', async () => {
+      mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
       mockPrisma.roles.findUnique.mockResolvedValue({ id_rol: 3, nombre: 'Cliente' });
       mockPrisma.usuarios.create.mockResolvedValue({
-        id_usuario: 5, nombre: 'Test', email: 'a@b.com',
+        id_usuario: 5, nombre: 'Test', email: 'a@b.com', id_clinica: 1,
         roles: { nombre: 'Cliente' },
       });
       mockPrisma.propietarios.create.mockResolvedValue({});
 
-      await service.register({ nombre: 'Test', email: 'a@b.com', password: 'Pass1@test' });
+      await service.register({
+        nombre: 'Test', email: 'a@b.com', password: 'Pass1@test', clinicaSlug: 'test-clinic',
+      });
 
       expect(mockPrisma.propietarios.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ id_usuario: 5 }) }),
@@ -126,7 +150,7 @@ describe('AuthService', () => {
 
   describe('login', () => {
     it('lanza UnauthorizedException si el email no existe', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue(null);
+      mockPrisma.usuarios.findMany.mockResolvedValue([]);
       await expect(
         service.login({ email: 'noexiste@b.com', password: 'Pass1@test' }),
       ).rejects.toThrow(UnauthorizedException);
@@ -134,10 +158,10 @@ describe('AuthService', () => {
 
     it('lanza UnauthorizedException si la contraseña es incorrecta', async () => {
       const hashed = await bcrypt.hash('CorrectPass1@', 10);
-      mockPrisma.usuarios.findUnique.mockResolvedValue({
-        id_usuario: 1, nombre: 'Test', email: 'a@b.com',
-        password: hashed, roles: { nombre: 'Cliente' },
-      });
+      mockPrisma.usuarios.findMany.mockResolvedValue([{
+        id_usuario: 1, nombre: 'Test', email: 'a@b.com', id_clinica: null,
+        password: hashed, roles: { nombre: 'Cliente' }, clinicas: null,
+      }]);
       mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1 });
 
       await expect(
@@ -147,13 +171,15 @@ describe('AuthService', () => {
 
     it('retorna token y datos del usuario en login exitoso', async () => {
       const hashed = await bcrypt.hash('Pass1@test', 10);
-      mockPrisma.usuarios.findUnique.mockResolvedValue({
-        id_usuario: 1, nombre: 'Test', email: 'a@b.com',
-        password: hashed, roles: { nombre: 'Cliente' },
-      });
+      mockPrisma.usuarios.findMany.mockResolvedValue([{
+        id_usuario: 1, nombre: 'Test', email: 'a@b.com', id_clinica: null,
+        password: hashed, roles: { nombre: 'Cliente' }, clinicas: null,
+      }]);
       mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1 });
 
       const result = await service.login({ email: 'a@b.com', password: 'Pass1@test' });
+
+      if ('requiresClinicSelection' in result) throw new Error('unexpected clinic selection');
 
       expect(result.token).toBe('mock.jwt.token');
       expect(result.user.email).toBe('a@b.com');
@@ -164,14 +190,14 @@ describe('AuthService', () => {
 
   describe('forgotPassword', () => {
     it('responde igual si el email no existe (evita user enumeration)', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue(null);
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
       const result = await service.forgotPassword('noexiste@b.com');
       expect(result.message).toContain('Si el correo está registrado');
       expect(mockMail.sendPasswordReset).not.toHaveBeenCalled();
     });
 
     it('envía email si el usuario existe', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({
+      mockPrisma.usuarios.findFirst.mockResolvedValue({
         id_usuario: 1, nombre: 'Test', email: 'a@b.com', password: 'hashed',
       });
       mockMail.sendPasswordReset.mockResolvedValue(undefined);

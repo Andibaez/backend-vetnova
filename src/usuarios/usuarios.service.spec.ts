@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { ROLES } from '../common/constants/roles.constant';
 
 const mockPrisma = {
@@ -25,9 +26,13 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com' };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com' };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com' };
+const mockNotificaciones = {
+  crearParaUsuario: jest.fn(),
+};
+
+const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
+const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
+const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
 
 describe('UsuariosService', () => {
   let service: UsuariosService;
@@ -37,6 +42,7 @@ describe('UsuariosService', () => {
       providers: [
         UsuariosService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: NotificacionesService, useValue: mockNotificaciones },
       ],
     }).compile();
 
@@ -47,7 +53,7 @@ describe('UsuariosService', () => {
   // ── update ───────────────────────────────────────────────────
 
   describe('update', () => {
-    const existingUser = { id_usuario: 2, email: 'a@b.com', password: 'hashed', nombre: 'Test' };
+    const existingUser = { id_usuario: 2, email: 'a@b.com', password: 'hashed', nombre: 'Test', id_clinica: null };
 
     it('lanza NotFoundException si el usuario no existe', async () => {
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
@@ -93,11 +99,11 @@ describe('UsuariosService', () => {
   describe('remove', () => {
     it('lanza NotFoundException si el usuario no existe', async () => {
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
-      await expect(service.remove(99)).rejects.toThrow(NotFoundException);
+      await expect(service.remove(99, adminUser)).rejects.toThrow(NotFoundException);
     });
 
     it('ejecuta transacción con desvinculación de registros relacionados', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({ id_usuario: 1 });
+      mockPrisma.usuarios.findUnique.mockResolvedValue({ id_usuario: 1, id_clinica: null });
       mockPrisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
           veterinarios: { findUnique: jest.fn().mockResolvedValue(null), deleteMany: jest.fn() },
@@ -112,7 +118,7 @@ describe('UsuariosService', () => {
         expect(tx.usuarios.delete).toHaveBeenCalledWith({ where: { id_usuario: 1 } });
       });
 
-      await service.remove(1);
+      await service.remove(1, adminUser);
       expect(mockPrisma.$transaction).toHaveBeenCalled();
     });
   });

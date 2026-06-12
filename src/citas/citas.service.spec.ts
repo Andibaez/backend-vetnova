@@ -25,14 +25,14 @@ const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com' };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com' };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com' };
+const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
+const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
+const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
 
 const mascota = { id_mascota: 10, id_propietario: 5 };
 const propietario = { id_propietario: 5, id_usuario: 2 };
 const citaBase = {
-  id_cita: 1, id_mascota: 10, id_usuario: 2, id_veterinario: null,
+  id_cita: 1, id_mascota: 10, id_usuario: 2, id_veterinario: null, id_clinica: null,
   fecha: new Date(), hora: '10:00', estado: 'pendiente',
   mascotas: { nombre: 'Firulais', propietario },
   usuarios: { id_usuario: 2, nombre: 'Cliente' },
@@ -156,7 +156,7 @@ describe('CitasService', () => {
       await service.update(1, { estado: 'confirmada' }, vetUser);
 
       expect(mockNotificaciones.crearParaUsuario).toHaveBeenCalledWith(
-        2, 'Cita confirmada', expect.any(String), 'cita_confirmada',
+        2, 'Actualización de tu cita', expect.any(String), 'cita_actualizada',
         expect.any(Number), expect.any(Number), 'cita',
       );
     });

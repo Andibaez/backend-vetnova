@@ -51,7 +51,7 @@ export class NotificacionesService {
     referencia_id?: number,
     referencia_tipo?: string,
   ) {
-    await this.prisma.notificaciones.create({
+    return this.prisma.notificaciones.create({
       data: {
         titulo,
         mensaje,
@@ -90,28 +90,6 @@ export class NotificacionesService {
         referencia_id: referencia_id ?? null,
         referencia_tipo: referencia_tipo ?? null,
       })),
-    });
-  }
-
-  async crearParaUsuario(
-    id_usuario_destino: number,
-    titulo: string,
-    mensaje: string,
-    tipo: string,
-    id_usuario_origen?: number,
-    referencia_id?: number,
-    referencia_tipo?: string,
-  ) {
-    return this.prisma.notificaciones.create({
-      data: {
-        titulo,
-        mensaje,
-        tipo,
-        id_usuario_destino,
-        id_usuario_origen: id_usuario_origen ?? null,
-        referencia_id: referencia_id ?? null,
-        referencia_tipo: referencia_tipo ?? null,
-      },
     });
   }
 }

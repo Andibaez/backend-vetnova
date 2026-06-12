@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PropietariosService } from './propietarios.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { ROLES } from '../common/constants/roles.constant';
 
 const mockPrisma = {
@@ -17,9 +18,13 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com' };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com' };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com' };
+const mockNotificaciones = {
+  crearParaUsuario: jest.fn(),
+};
+
+const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
+const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
+const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
 
 describe('PropietariosService', () => {
   let service: PropietariosService;
@@ -29,6 +34,7 @@ describe('PropietariosService', () => {
       providers: [
         PropietariosService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: NotificacionesService, useValue: mockNotificaciones },
       ],
     }).compile();
 
@@ -103,12 +109,12 @@ describe('PropietariosService', () => {
     });
 
     it('cliente no puede ver propietario de otro usuario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 99 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 99, id_clinica: null });
       await expect(service.findOne(1, clienteUser)).rejects.toThrow(ForbiddenException);
     });
 
     it('cliente puede ver su propio propietario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 2 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 2, id_clinica: null });
       const result = await service.findOne(1, clienteUser);
       expect(result).toBeDefined();
     });
@@ -119,18 +125,18 @@ describe('PropietariosService', () => {
   describe('deletePropietario', () => {
     it('lanza NotFoundException si no existe', async () => {
       mockPrisma.propietarios.findUnique.mockResolvedValue(null);
-      await expect(service.deletePropietario(99)).rejects.toThrow(NotFoundException);
+      await expect(service.deletePropietario(99, adminUser)).rejects.toThrow(NotFoundException);
     });
 
     it('desvincula facturas antes de eliminar', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_clinica: null });
       mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
         for (const op of ops) await op;
       });
       mockPrisma.facturas.updateMany.mockResolvedValue({ count: 2 });
       mockPrisma.propietarios.delete.mockResolvedValue({});
 
-      await service.deletePropietario(1);
+      await service.deletePropietario(1, adminUser);
 
       expect(mockPrisma.facturas.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id_propietario: 1 } }),

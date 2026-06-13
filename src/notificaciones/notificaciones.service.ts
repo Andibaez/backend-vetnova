@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
@@ -76,7 +80,9 @@ export class NotificacionesService {
       notificacion.id_usuario_destino !== user.sub ||
       notificacion.destino.id_clinica !== clinicaId
     ) {
-      throw new ForbiddenException('No tienes permiso para eliminar esta notificación.');
+      throw new ForbiddenException(
+        'No tienes permiso para eliminar esta notificación.',
+      );
     }
 
     await this.prisma.notificaciones.delete({ where: { id_notificacion: id } });
@@ -143,14 +149,19 @@ export class NotificacionesService {
     return user.clinicaId;
   }
 
-  private async assertSameClinic(id_usuario_destino: number, id_usuario_origen?: number) {
+  private async assertSameClinic(
+    id_usuario_destino: number,
+    id_usuario_origen?: number,
+  ) {
     const destino = await this.prisma.usuarios.findUnique({
       where: { id_usuario: id_usuario_destino },
       select: { id_clinica: true },
     });
     if (!destino) throw new NotFoundException('Usuario destino no encontrado.');
     if (!destino.id_clinica) {
-      throw new ForbiddenException('El usuario destino no tiene una clínica asociada.');
+      throw new ForbiddenException(
+        'El usuario destino no tiene una clínica asociada.',
+      );
     }
 
     if (!id_usuario_origen) return;
@@ -161,7 +172,9 @@ export class NotificacionesService {
     });
     if (!origen) throw new NotFoundException('Usuario origen no encontrado.');
     if (origen.id_clinica !== destino.id_clinica) {
-      throw new ForbiddenException('Origen y destino no pertenecen a la misma clínica.');
+      throw new ForbiddenException(
+        'Origen y destino no pertenecen a la misma clínica.',
+      );
     }
   }
 }

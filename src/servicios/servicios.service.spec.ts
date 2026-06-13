@@ -16,7 +16,13 @@ const mockPrisma = {
   $transaction: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
+const adminUser = {
+  sub: 1,
+  role: ROLES.ADMIN,
+  name: 'Admin',
+  email: 'admin@test.com',
+  clinicaId: 1,
+};
 
 describe('ServiciosService', () => {
   let service: ServiciosService;
@@ -44,14 +50,18 @@ describe('ServiciosService', () => {
     });
   });
 
-  it('rechaza listado si el usuario no tiene clínica', async () => {
-    expect(() => service.findAll({ ...adminUser, clinicaId: null })).toThrow(ForbiddenException);
+  it('rechaza listado si el usuario no tiene clínica', () => {
+    expect(() => service.findAll({ ...adminUser, clinicaId: null })).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('lanza NotFoundException si el servicio no existe', async () => {
     mockPrisma.servicios.findUnique.mockResolvedValue(null);
 
-    await expect(service.findOne(99, adminUser)).rejects.toThrow(NotFoundException);
+    await expect(service.findOne(99, adminUser)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('crea servicios con los datos recibidos', async () => {
@@ -65,7 +75,10 @@ describe('ServiciosService', () => {
   });
 
   it('actualiza un servicio existente', async () => {
-    mockPrisma.servicios.findUnique.mockResolvedValue({ id_servicio: 1, id_clinica: 1 });
+    mockPrisma.servicios.findUnique.mockResolvedValue({
+      id_servicio: 1,
+      id_clinica: 1,
+    });
     mockPrisma.servicios.update.mockResolvedValue({ id_servicio: 1 });
 
     await service.update(1, { nombre: 'Consulta general' }, adminUser);
@@ -77,16 +90,23 @@ describe('ServiciosService', () => {
   });
 
   it('elimina detalles antes de eliminar el servicio', async () => {
-    mockPrisma.servicios.findUnique.mockResolvedValue({ id_servicio: 1, id_clinica: 1 });
-    mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
-      for (const op of ops) await op;
+    mockPrisma.servicios.findUnique.mockResolvedValue({
+      id_servicio: 1,
+      id_clinica: 1,
+    });
+    mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => {
+      return Promise.all(ops);
     });
     mockPrisma.detalle_servicios.deleteMany.mockResolvedValue({ count: 1 });
     mockPrisma.servicios.delete.mockResolvedValue({});
 
     await service.remove(1, adminUser);
 
-    expect(mockPrisma.detalle_servicios.deleteMany).toHaveBeenCalledWith({ where: { id_servicio: 1 } });
-    expect(mockPrisma.servicios.delete).toHaveBeenCalledWith({ where: { id_servicio: 1 } });
+    expect(mockPrisma.detalle_servicios.deleteMany).toHaveBeenCalledWith({
+      where: { id_servicio: 1 },
+    });
+    expect(mockPrisma.servicios.delete).toHaveBeenCalledWith({
+      where: { id_servicio: 1 },
+    });
   });
 });

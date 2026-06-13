@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
@@ -6,14 +11,24 @@ import { UpdateCitaDto } from './dto/update-cita.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
 import { tenantWhere } from '../common/utils/tenant.util';
-import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  paginate,
+  paginatedResponse,
+} from '../common/dto/pagination.dto';
 
 const CITA_INCLUDE = {
   mascotas: {
     include: { propietario: true },
   },
   usuarios: { select: { id_usuario: true, nombre: true } },
-  veterinarios: { select: { id_veterinario: true, especialidad: true, usuarios: { select: { nombre: true } } } },
+  veterinarios: {
+    select: {
+      id_veterinario: true,
+      especialidad: true,
+      usuarios: { select: { nombre: true } },
+    },
+  },
 } as const;
 
 type CitaConRelaciones = {
@@ -49,18 +64,27 @@ export class CitasService {
       const prop = await this.prisma.propietarios.findUnique({
         where: { id_usuario: user.sub },
       });
-      if (!prop || prop.id_clinica !== clinicaId || mascota.id_propietario !== prop.id_propietario) {
-        throw new ForbiddenException('Solo puedes agendar citas para tus mascotas.');
+      if (
+        !prop ||
+        prop.id_clinica !== clinicaId ||
+        mascota.id_propietario !== prop.id_propietario
+      ) {
+        throw new ForbiddenException(
+          'Solo puedes agendar citas para tus mascotas.',
+        );
       }
     }
 
-    const id_usuario = user.role === ROLES.CLIENTE ? user.sub : (dto.id_usuario ?? user.sub);
+    const id_usuario =
+      user.role === ROLES.CLIENTE ? user.sub : (dto.id_usuario ?? user.sub);
     const usuarioCita = await this.prisma.usuarios.findUnique({
       where: { id_usuario },
       select: { id_clinica: true },
     });
     if (!usuarioCita || usuarioCita.id_clinica !== clinicaId) {
-      throw new ForbiddenException('El usuario de la cita no pertenece a tu clínica.');
+      throw new ForbiddenException(
+        'El usuario de la cita no pertenece a tu clínica.',
+      );
     }
 
     // Resolver id_veterinario: usar el ID directo o buscar por nombre como fallback
@@ -83,7 +107,9 @@ export class CitasService {
       });
       if (!vet) throw new BadRequestException('El veterinario no existe');
       if (vet.usuarios.id_clinica !== clinicaId) {
-        throw new ForbiddenException('El veterinario no pertenece a tu clínica.');
+        throw new ForbiddenException(
+          'El veterinario no pertenece a tu clínica.',
+        );
       }
     }
 
@@ -102,7 +128,7 @@ export class CitasService {
       include: CITA_INCLUDE,
     });
 
-    const mascotaNombre = (cita as any).mascotas?.nombre ?? 'su mascota';
+    const mascotaNombre = cita.mascotas?.nombre ?? 'su mascota';
 
     if (user.role === ROLES.CLIENTE) {
       await this.notificaciones.crearParaAdmins(
@@ -138,36 +164,81 @@ export class CitasService {
     return flattenVeterinario(cita);
   }
 
-  async findAll(user: JwtPayload, pagination: PaginationDto = {}, id_usuario?: number) {
+  async findAll(
+    user: JwtPayload,
+    pagination: PaginationDto = {},
+    id_usuario?: number,
+  ) {
     const { take, skip } = paginate(pagination.page, pagination.limit);
     const order = [{ fecha: 'asc' as const }, { hora: 'asc' as const }];
 
     if (user.role === ROLES.CLIENTE) {
       const where = { id_usuario: user.sub, ...tenantWhere(user) };
       const [citas, total] = await Promise.all([
-        this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
+        this.prisma.citas.findMany({
+          where,
+          include: CITA_INCLUDE,
+          orderBy: order,
+          take,
+          skip,
+        }),
         this.prisma.citas.count({ where }),
       ]);
-      return paginatedResponse(citas.map(flattenVeterinario), total, pagination.page ?? 1, pagination.limit ?? 20);
+      return paginatedResponse(
+        citas.map(flattenVeterinario),
+        total,
+        pagination.page ?? 1,
+        pagination.limit ?? 20,
+      );
     }
 
     if (user.role === ROLES.VETERINARIO) {
-      const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
       if (!vet) return paginatedResponse([], 0, 1, pagination.limit ?? 20);
-      const where = { id_veterinario: vet.id_veterinario, ...tenantWhere(user) };
+      const where = {
+        id_veterinario: vet.id_veterinario,
+        ...tenantWhere(user),
+      };
       const [citas, total] = await Promise.all([
-        this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
+        this.prisma.citas.findMany({
+          where,
+          include: CITA_INCLUDE,
+          orderBy: order,
+          take,
+          skip,
+        }),
         this.prisma.citas.count({ where }),
       ]);
-      return paginatedResponse(citas.map(flattenVeterinario), total, pagination.page ?? 1, pagination.limit ?? 20);
+      return paginatedResponse(
+        citas.map(flattenVeterinario),
+        total,
+        pagination.page ?? 1,
+        pagination.limit ?? 20,
+      );
     }
 
-    const where = { ...tenantWhere(user), ...(id_usuario ? { id_usuario } : {}) };
+    const where = {
+      ...tenantWhere(user),
+      ...(id_usuario ? { id_usuario } : {}),
+    };
     const [citas, total] = await Promise.all([
-      this.prisma.citas.findMany({ where, include: CITA_INCLUDE, orderBy: order, take, skip }),
+      this.prisma.citas.findMany({
+        where,
+        include: CITA_INCLUDE,
+        orderBy: order,
+        take,
+        skip,
+      }),
       this.prisma.citas.count({ where }),
     ]);
-    return paginatedResponse(citas.map(flattenVeterinario), total, pagination.page ?? 1, pagination.limit ?? 20);
+    return paginatedResponse(
+      citas.map(flattenVeterinario),
+      total,
+      pagination.page ?? 1,
+      pagination.limit ?? 20,
+    );
   }
 
   async findOne(id: number, user: JwtPayload) {
@@ -184,7 +255,9 @@ export class CitasService {
       throw new ForbiddenException('No tienes permiso para ver esta cita.');
     }
     if (user.role === ROLES.VETERINARIO) {
-      const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
       if (!vet || cita.id_veterinario !== vet.id_veterinario) {
         throw new ForbiddenException('Esta cita no está asignada a ti.');
       }
@@ -198,14 +271,21 @@ export class CitasService {
       include: { mascotas: true },
     });
     if (!existing) throw new NotFoundException('Cita no existe');
-    if (user.role !== ROLES.SUPER_ADMIN && existing.id_clinica !== user.clinicaId) {
+    if (
+      user.role !== ROLES.SUPER_ADMIN &&
+      existing.id_clinica !== user.clinicaId
+    ) {
       throw new NotFoundException('Cita no existe');
     }
 
     if (user.role === ROLES.VETERINARIO) {
-      const vet = await this.prisma.veterinarios.findUnique({ where: { id_usuario: user.sub } });
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
       if (!vet || existing.id_veterinario !== vet.id_veterinario) {
-        throw new ForbiddenException('Solo puedes actualizar citas asignadas a ti.');
+        throw new ForbiddenException(
+          'Solo puedes actualizar citas asignadas a ti.',
+        );
       }
     }
 
@@ -231,7 +311,10 @@ export class CitasService {
       const vet = await this.prisma.veterinarios.findFirst({
         where: {
           usuarios: {
-            nombre: { contains: data._resolveVet as string, mode: 'insensitive' },
+            nombre: {
+              contains: data._resolveVet as string,
+              mode: 'insensitive',
+            },
             id_clinica: clinicaId,
           },
         },
@@ -248,7 +331,9 @@ export class CitasService {
       });
       if (!vet) throw new BadRequestException('El veterinario no existe');
       if (vet.usuarios.id_clinica !== clinicaId) {
-        throw new ForbiddenException('El veterinario no pertenece a tu clínica.');
+        throw new ForbiddenException(
+          'El veterinario no pertenece a tu clínica.',
+        );
       }
     }
 
@@ -273,14 +358,21 @@ export class CitasService {
       hora: string | null;
       mascotas: { nombre: string | null } | null;
     },
-    cita: { id_cita: number; estado: string | null; fecha: Date | null; hora: string | null },
+    cita: {
+      id_cita: number;
+      estado: string | null;
+      fecha: Date | null;
+      hora: string | null;
+    },
     user: JwtPayload,
   ) {
-    if (!existing.id_usuario || !cita.estado || !cita.fecha || !cita.hora) return;
+    if (!existing.id_usuario || !cita.estado || !cita.fecha || !cita.hora)
+      return;
 
     const estadoCambio = cita.estado !== existing.estado;
     const fechaHoraCambio =
-      cita.fecha.getTime() !== existing.fecha?.getTime() || cita.hora !== existing.hora;
+      cita.fecha.getTime() !== existing.fecha?.getTime() ||
+      cita.hora !== existing.hora;
 
     if (!estadoCambio && !fechaHoraCambio) return;
 

@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
@@ -18,11 +28,17 @@ export class UsuariosController {
 
   @Get()
   findAll(@Query() query: FindUsuariosDto, @CurrentUser() user: JwtPayload) {
-    return this.usuariosService.findAll(user, query.rol, { page: query.page, limit: query.limit });
+    return this.usuariosService.findAll(user, query.rol, {
+      page: query.page,
+      limit: query.limit,
+    });
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.usuariosService.findOne(id, user);
   }
 
@@ -42,7 +58,10 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.usuariosService.remove(id, user);
   }
 }

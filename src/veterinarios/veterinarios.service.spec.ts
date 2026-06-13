@@ -39,7 +39,9 @@ describe('VeterinariosService', () => {
       telefono: '3001234567',
       horarioAtencion: 'L-V 8-5',
     });
-    expect(mockPrisma.veterinarios.findUnique).toHaveBeenCalledWith({ where: { id_usuario: 3 } });
+    expect(mockPrisma.veterinarios.findUnique).toHaveBeenCalledWith({
+      where: { id_usuario: 3 },
+    });
   });
 
   it('lanza NotFoundException si el veterinario no tiene perfil', async () => {

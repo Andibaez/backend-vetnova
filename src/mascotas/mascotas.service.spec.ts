@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { MascotasService } from './mascotas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
@@ -28,9 +32,27 @@ const mockNotificaciones = {
   crearParaAdmins: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: 1 };
+const adminUser = {
+  sub: 1,
+  role: ROLES.ADMIN,
+  name: 'Admin',
+  email: 'admin@test.com',
+  clinicaId: 1,
+};
+const clienteUser = {
+  sub: 2,
+  role: ROLES.CLIENTE,
+  name: 'Cliente',
+  email: 'cliente@test.com',
+  clinicaId: 1,
+};
+const vetUser = {
+  sub: 3,
+  role: ROLES.VETERINARIO,
+  name: 'Vet',
+  email: 'vet@test.com',
+  clinicaId: 1,
+};
 const userWithoutClinic = { ...adminUser, clinicaId: null };
 
 describe('MascotasService', () => {
@@ -51,7 +73,10 @@ describe('MascotasService', () => {
 
   describe('create', () => {
     it('admin crea mascota con id_clinica del usuario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 5, id_clinica: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 5,
+        id_clinica: 1,
+      });
       mockPrisma.mascotas.create.mockResolvedValue({ id_mascota: 10 });
 
       await service.create({ nombre: 'Luna', id_propietario: 5 }, adminUser);
@@ -64,21 +89,27 @@ describe('MascotasService', () => {
     it('rechaza propietario inexistente', async () => {
       mockPrisma.propietarios.findUnique.mockResolvedValue(null);
 
-      await expect(service.create({ nombre: 'Luna', id_propietario: 99 }, adminUser)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.create({ nombre: 'Luna', id_propietario: 99 }, adminUser),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('rechaza propietario de otra clínica', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 5, id_clinica: 2 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 5,
+        id_clinica: 2,
+      });
 
-      await expect(service.create({ nombre: 'Luna', id_propietario: 5 }, adminUser)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.create({ nombre: 'Luna', id_propietario: 5 }, adminUser),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('cliente solo crea mascotas para su propio propietario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 7, id_clinica: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 7,
+        id_clinica: 1,
+      });
       mockPrisma.mascotas.create.mockResolvedValue({ id_mascota: 10 });
 
       await service.create({ nombre: 'Luna' }, clienteUser);
@@ -89,7 +120,9 @@ describe('MascotasService', () => {
     });
 
     it('requiere clínica asociada', async () => {
-      await expect(service.create({ nombre: 'Luna' }, userWithoutClinic)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.create({ nombre: 'Luna' }, userWithoutClinic),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -101,20 +134,31 @@ describe('MascotasService', () => {
       await service.findAll(adminUser, undefined, { page: 1, limit: 10 });
 
       expect(mockPrisma.mascotas.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id_clinica: 1 }, take: 10, skip: 0 }),
+        expect.objectContaining({
+          where: { id_clinica: 1 },
+          take: 10,
+          skip: 0,
+        }),
       );
-      expect(mockPrisma.mascotas.count).toHaveBeenCalledWith({ where: { id_clinica: 1 } });
+      expect(mockPrisma.mascotas.count).toHaveBeenCalledWith({
+        where: { id_clinica: 1 },
+      });
     });
 
     it('cliente lista solo mascotas de su propietario y clínica', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 7, id_clinica: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 7,
+        id_clinica: 1,
+      });
       mockPrisma.mascotas.findMany.mockResolvedValue([]);
       mockPrisma.mascotas.count.mockResolvedValue(0);
 
       await service.findAll(clienteUser);
 
       expect(mockPrisma.mascotas.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id_propietario: 7, id_clinica: 1 } }),
+        expect.objectContaining({
+          where: { id_propietario: 7, id_clinica: 1 },
+        }),
       );
     });
   });
@@ -123,27 +167,49 @@ describe('MascotasService', () => {
     it('lanza NotFoundException si no existe', async () => {
       mockPrisma.mascotas.findUnique.mockResolvedValue(null);
 
-      await expect(service.findOne(99, adminUser)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(99, adminUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('cliente no puede ver mascota de otro propietario', async () => {
-      mockPrisma.mascotas.findUnique.mockResolvedValue({ id_mascota: 10, id_propietario: 99, id_clinica: 1 });
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 7, id_clinica: 1 });
+      mockPrisma.mascotas.findUnique.mockResolvedValue({
+        id_mascota: 10,
+        id_propietario: 99,
+        id_clinica: 1,
+      });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 7,
+        id_clinica: 1,
+      });
 
-      await expect(service.findOne(10, clienteUser)).rejects.toThrow(ForbiddenException);
+      await expect(service.findOne(10, clienteUser)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
   describe('updateMascota', () => {
     it('cliente no puede actualizar mascotas directamente', async () => {
-      mockPrisma.mascotas.findUnique.mockResolvedValue({ id_mascota: 10, id_clinica: 1 });
+      mockPrisma.mascotas.findUnique.mockResolvedValue({
+        id_mascota: 10,
+        id_clinica: 1,
+      });
 
-      await expect(service.updateMascota(10, { nombre: 'Luna' }, clienteUser)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.updateMascota(10, { nombre: 'Luna' }, clienteUser),
+      ).rejects.toThrow(ForbiddenException);
     });
 
     it('veterinario actualiza mascota existente', async () => {
-      mockPrisma.mascotas.findUnique.mockResolvedValue({ id_mascota: 10, id_clinica: 1 });
-      mockPrisma.mascotas.update.mockResolvedValue({ id_mascota: 10, nombre: 'Luna' });
+      mockPrisma.mascotas.findUnique.mockResolvedValue({
+        id_mascota: 10,
+        id_clinica: 1,
+      });
+      mockPrisma.mascotas.update.mockResolvedValue({
+        id_mascota: 10,
+        nombre: 'Luna',
+      });
 
       await service.updateMascota(10, { nombre: 'Luna' }, vetUser);
 
@@ -158,11 +224,16 @@ describe('MascotasService', () => {
     it('lanza NotFoundException si no existe', async () => {
       mockPrisma.mascotas.findUnique.mockResolvedValue(null);
 
-      await expect(service.deleteMascota(99, adminUser)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteMascota(99, adminUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('elimina dependencias antes de borrar mascota', async () => {
-      mockPrisma.mascotas.findUnique.mockResolvedValue({ id_mascota: 10, id_clinica: 1 });
+      mockPrisma.mascotas.findUnique.mockResolvedValue({
+        id_mascota: 10,
+        id_clinica: 1,
+      });
       mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
         for (const op of ops) await op;
       });
@@ -177,7 +248,9 @@ describe('MascotasService', () => {
       await service.deleteMascota(10, adminUser);
 
       expect(mockPrisma.$transaction).toHaveBeenCalled();
-      expect(mockPrisma.mascotas.delete).toHaveBeenCalledWith({ where: { id_mascota: 10 } });
+      expect(mockPrisma.mascotas.delete).toHaveBeenCalledWith({
+        where: { id_mascota: 10 },
+      });
     });
   });
 });

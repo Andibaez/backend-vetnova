@@ -1,15 +1,26 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateFacturaDto } from './dto/create-factura.dto';
 import { UpdateFacturaDto } from './dto/update-factura.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
-import { PaginationDto, paginate, paginatedResponse } from '../common/dto/pagination.dto';
+import {
+  PaginationDto,
+  paginate,
+  paginatedResponse,
+} from '../common/dto/pagination.dto';
 
 const FACTURA_INCLUDE = {
   clinicas: { select: { id_clinica: true, nombre: true, slug: true } },
   propietarios: { select: { nombre: true, email: true, id_clinica: true } },
-  mascotas: { select: { nombre: true, id_clinica: true, id_propietario: true } },
+  mascotas: {
+    select: { nombre: true, id_clinica: true, id_propietario: true },
+  },
   detalle_productos: { include: { productos: { select: { nombre: true } } } },
   detalle_servicios: { include: { servicios: { select: { nombre: true } } } },
 } as const;
@@ -23,12 +34,25 @@ export class FacturasService {
     const { take, skip } = paginate(pagination.page, pagination.limit);
 
     if (user.role === ROLES.CLIENTE) {
-      const prop = await this.prisma.propietarios.findUnique({ where: { id_usuario: user.sub } });
-      if (!prop) return paginatedResponse([], 0, pagination.page ?? 1, pagination.limit ?? 20);
+      const prop = await this.prisma.propietarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
+      if (!prop)
+        return paginatedResponse(
+          [],
+          0,
+          pagination.page ?? 1,
+          pagination.limit ?? 20,
+        );
       if (prop.id_clinica !== clinicaId) {
-        throw new ForbiddenException('No tienes permiso para ver estas facturas.');
+        throw new ForbiddenException(
+          'No tienes permiso para ver estas facturas.',
+        );
       }
-      const where = { id_clinica: clinicaId, id_propietario: prop.id_propietario };
+      const where = {
+        id_clinica: clinicaId,
+        id_propietario: prop.id_propietario,
+      };
       const [facturas, total] = await Promise.all([
         this.prisma.facturas.findMany({
           where,
@@ -39,7 +63,12 @@ export class FacturasService {
         }),
         this.prisma.facturas.count({ where }),
       ]);
-      return paginatedResponse(facturas, total, pagination.page ?? 1, pagination.limit ?? 20);
+      return paginatedResponse(
+        facturas,
+        total,
+        pagination.page ?? 1,
+        pagination.limit ?? 20,
+      );
     }
 
     const where = { id_clinica: clinicaId };
@@ -53,7 +82,12 @@ export class FacturasService {
       }),
       this.prisma.facturas.count({ where }),
     ]);
-    return paginatedResponse(facturas, total, pagination.page ?? 1, pagination.limit ?? 20);
+    return paginatedResponse(
+      facturas,
+      total,
+      pagination.page ?? 1,
+      pagination.limit ?? 20,
+    );
   }
 
   async findOne(id: number, user: JwtPayload) {
@@ -177,54 +211,87 @@ export class FacturasService {
     }
 
     if (user.role === ROLES.CLIENTE) {
-      const prop = await this.prisma.propietarios.findUnique({ where: { id_usuario: user.sub } });
-      if (!prop || prop.id_clinica !== clinicaId || factura.id_propietario !== prop.id_propietario) {
-        throw new ForbiddenException('No tienes permiso para ver esta factura.');
+      const prop = await this.prisma.propietarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
+      if (
+        !prop ||
+        prop.id_clinica !== clinicaId ||
+        factura.id_propietario !== prop.id_propietario
+      ) {
+        throw new ForbiddenException(
+          'No tienes permiso para ver esta factura.',
+        );
       }
     }
   }
 
-  private async validateFacturaRelations(dto: CreateFacturaDto, clinicaId: number) {
+  private async validateFacturaRelations(
+    dto: CreateFacturaDto,
+    clinicaId: number,
+  ) {
     if (!dto.id_propietario && !dto.id_mascota) {
-      throw new BadRequestException('La factura debe estar asociada a un propietario o a una mascota.');
+      throw new BadRequestException(
+        'La factura debe estar asociada a un propietario o a una mascota.',
+      );
     }
 
     const propietario = dto.id_propietario
-      ? await this.prisma.propietarios.findUnique({ where: { id_propietario: dto.id_propietario } })
+      ? await this.prisma.propietarios.findUnique({
+          where: { id_propietario: dto.id_propietario },
+        })
       : null;
-    if (dto.id_propietario && !propietario) throw new NotFoundException('Propietario no encontrado.');
+    if (dto.id_propietario && !propietario)
+      throw new NotFoundException('Propietario no encontrado.');
     if (propietario && propietario.id_clinica !== clinicaId) {
       throw new ForbiddenException('El propietario no pertenece a tu clínica.');
     }
 
     const mascota = dto.id_mascota
-      ? await this.prisma.mascotas.findUnique({ where: { id_mascota: dto.id_mascota } })
+      ? await this.prisma.mascotas.findUnique({
+          where: { id_mascota: dto.id_mascota },
+        })
       : null;
-    if (dto.id_mascota && !mascota) throw new NotFoundException('Mascota no encontrada.');
+    if (dto.id_mascota && !mascota)
+      throw new NotFoundException('Mascota no encontrada.');
     if (mascota && mascota.id_clinica !== clinicaId) {
       throw new ForbiddenException('La mascota no pertenece a tu clínica.');
     }
-    if (propietario && mascota && mascota.id_propietario !== propietario.id_propietario) {
-      throw new BadRequestException('La mascota no pertenece al propietario indicado.');
+    if (
+      propietario &&
+      mascota &&
+      mascota.id_propietario !== propietario.id_propietario
+    ) {
+      throw new BadRequestException(
+        'La mascota no pertenece al propietario indicado.',
+      );
     }
 
-    const productoIds = [...new Set((dto.productos ?? []).map((p) => p.id_producto))];
+    const productoIds = [
+      ...new Set((dto.productos ?? []).map((p) => p.id_producto)),
+    ];
     if (productoIds.length) {
       const total = await this.prisma.productos.count({
         where: { id_producto: { in: productoIds }, id_clinica: clinicaId },
       });
       if (total !== productoIds.length) {
-        throw new ForbiddenException('Uno o más productos no pertenecen a tu clínica.');
+        throw new ForbiddenException(
+          'Uno o más productos no pertenecen a tu clínica.',
+        );
       }
     }
 
-    const servicioIds = [...new Set((dto.servicios ?? []).map((s) => s.id_servicio))];
+    const servicioIds = [
+      ...new Set((dto.servicios ?? []).map((s) => s.id_servicio)),
+    ];
     if (servicioIds.length) {
       const total = await this.prisma.servicios.count({
         where: { id_servicio: { in: servicioIds }, id_clinica: clinicaId },
       });
       if (total !== servicioIds.length) {
-        throw new ForbiddenException('Uno o más servicios no pertenecen a tu clínica.');
+        throw new ForbiddenException(
+          'Uno o más servicios no pertenecen a tu clínica.',
+        );
       }
     }
   }

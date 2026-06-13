@@ -1,4 +1,8 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 
@@ -34,7 +38,9 @@ export class MailService {
       this.logger.log(`Reset password email sent to ${to}`);
     } catch (err) {
       this.logger.error('Nodemailer error:', err);
-      throw new InternalServerErrorException('No se pudo enviar el correo de recuperación.');
+      throw new InternalServerErrorException(
+        'No se pudo enviar el correo de recuperación.',
+      );
     }
   }
 }

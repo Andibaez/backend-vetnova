@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
@@ -14,7 +18,9 @@ export class ClinicasService {
   }
 
   async findOne(id: number) {
-    const clinica = await this.prisma.clinicas.findUnique({ where: { id_clinica: id } });
+    const clinica = await this.prisma.clinicas.findUnique({
+      where: { id_clinica: id },
+    });
     if (!clinica) throw new NotFoundException('Clínica no encontrada.');
     return clinica;
   }
@@ -22,7 +28,13 @@ export class ClinicasService {
   async findActivas() {
     return this.prisma.clinicas.findMany({
       where: { estado: 'activa' },
-      select: { nombre: true, slug: true, direccion: true, latitud: true, longitud: true },
+      select: {
+        nombre: true,
+        slug: true,
+        direccion: true,
+        latitud: true,
+        longitud: true,
+      },
       orderBy: { nombre: 'asc' },
     });
   }
@@ -37,12 +49,18 @@ export class ClinicasService {
   }
 
   async create(dto: CreateClinicaDto) {
-    const existingSlug = await this.prisma.clinicas.findUnique({ where: { slug: dto.slug } });
-    if (existingSlug) throw new ConflictException('Ya existe una clínica con ese slug.');
+    const existingSlug = await this.prisma.clinicas.findUnique({
+      where: { slug: dto.slug },
+    });
+    if (existingSlug)
+      throw new ConflictException('Ya existe una clínica con ese slug.');
 
     const adminEmail = dto.adminEmail.trim().toLowerCase();
-    const existingAdmin = await this.prisma.usuarios.findFirst({ where: { email: adminEmail } });
-    if (existingAdmin) throw new ConflictException('Ya existe un usuario con ese correo.');
+    const existingAdmin = await this.prisma.usuarios.findFirst({
+      where: { email: adminEmail },
+    });
+    if (existingAdmin)
+      throw new ConflictException('Ya existe un usuario con ese correo.');
 
     const hashed = await bcrypt.hash(dto.adminPassword, 10);
 
@@ -59,8 +77,11 @@ export class ClinicasService {
         },
       });
 
-      let rolAdmin = await tx.roles.findUnique({ where: { nombre: ROLES.ADMIN } });
-      if (!rolAdmin) rolAdmin = await tx.roles.create({ data: { nombre: ROLES.ADMIN } });
+      let rolAdmin = await tx.roles.findUnique({
+        where: { nombre: ROLES.ADMIN },
+      });
+      if (!rolAdmin)
+        rolAdmin = await tx.roles.create({ data: { nombre: ROLES.ADMIN } });
 
       await tx.usuarios.create({
         data: {

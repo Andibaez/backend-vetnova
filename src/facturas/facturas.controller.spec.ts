@@ -11,7 +11,13 @@ const mockService = {
   remove: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
+const adminUser = {
+  sub: 1,
+  role: ROLES.ADMIN,
+  name: 'Admin',
+  email: 'admin@test.com',
+  clinicaId: 1,
+};
 
 describe('FacturasController', () => {
   let controller: FacturasController;
@@ -26,35 +32,45 @@ describe('FacturasController', () => {
     jest.clearAllMocks();
   });
 
-  it('propaga CurrentUser y paginación al listado', () => {
+  it('propaga CurrentUser y paginación al listado', async () => {
     mockService.findAll.mockReturnValue([]);
 
-    controller.findAll(adminUser, { page: 1, limit: 10 });
+    await controller.findAll(adminUser, { page: 1, limit: 10 });
 
-    expect(mockService.findAll).toHaveBeenCalledWith(adminUser, { page: 1, limit: 10 });
+    expect(mockService.findAll).toHaveBeenCalledWith(adminUser, {
+      page: 1,
+      limit: 10,
+    });
   });
 
-  it('propaga CurrentUser en create', () => {
-    const dto = { id_propietario: 7, servicios: [{ id_servicio: 1, cantidad: 1, precio_unitario: 50000 }] };
+  it('propaga CurrentUser en create', async () => {
+    const dto = {
+      id_propietario: 7,
+      servicios: [{ id_servicio: 1, cantidad: 1, precio_unitario: 50000 }],
+    };
     mockService.create.mockReturnValue({ id_factura: 1 });
 
-    controller.create(dto, adminUser);
+    await controller.create(dto, adminUser);
 
     expect(mockService.create).toHaveBeenCalledWith(dto, adminUser);
   });
 
-  it('propaga CurrentUser en update', () => {
+  it('propaga CurrentUser en update', async () => {
     mockService.update.mockReturnValue({ id_factura: 1 });
 
-    controller.update(1, { total: 50000 }, adminUser);
+    await controller.update(1, { total: 50000 }, adminUser);
 
-    expect(mockService.update).toHaveBeenCalledWith(1, { total: 50000 }, adminUser);
+    expect(mockService.update).toHaveBeenCalledWith(
+      1,
+      { total: 50000 },
+      adminUser,
+    );
   });
 
-  it('propaga CurrentUser en DELETE', () => {
+  it('propaga CurrentUser en DELETE', async () => {
     mockService.remove.mockReturnValue({ message: 'Factura eliminada.' });
 
-    controller.remove(1, adminUser);
+    await controller.remove(1, adminUser);
 
     expect(mockService.remove).toHaveBeenCalledWith(1, adminUser);
   });

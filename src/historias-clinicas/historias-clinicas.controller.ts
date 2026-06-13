@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { HistoriasClinicasService } from './historias-clinicas.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
@@ -25,7 +34,10 @@ export class HistoriasClinicasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Post('consultas')
-  createConsulta(@Body() dto: CreateConsultaDto, @CurrentUser() user: JwtPayload) {
+  createConsulta(
+    @Body() dto: CreateConsultaDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.historiasService.createConsulta(dto, user);
   }
 
@@ -41,7 +53,10 @@ export class HistoriasClinicasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Delete('consultas/:id')
-  removeConsulta(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  removeConsulta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.historiasService.removeConsulta(id, user);
   }
 }

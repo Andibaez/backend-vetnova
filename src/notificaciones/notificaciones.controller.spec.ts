@@ -11,7 +11,13 @@ const mockService = {
   remove: jest.fn(),
 };
 
-const user = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
+const user = {
+  sub: 2,
+  role: ROLES.CLIENTE,
+  name: 'Cliente',
+  email: 'cliente@test.com',
+  clinicaId: 1,
+};
 
 describe('NotificacionesController', () => {
   let controller: NotificacionesController;
@@ -26,34 +32,34 @@ describe('NotificacionesController', () => {
     jest.clearAllMocks();
   });
 
-  it('propaga CurrentUser y filtro no_leidas al listado', () => {
+  it('propaga CurrentUser y filtro no_leidas al listado', async () => {
     mockService.findAll.mockReturnValue([]);
 
-    controller.findAll(user, 'true');
+    await controller.findAll(user, 'true');
 
     expect(mockService.findAll).toHaveBeenCalledWith(user, true);
   });
 
-  it('propaga CurrentUser al contador', () => {
+  it('propaga CurrentUser al contador', async () => {
     mockService.count.mockReturnValue({ count: 0 });
 
-    controller.count(user);
+    await controller.count(user);
 
     expect(mockService.count).toHaveBeenCalledWith(user);
   });
 
-  it('propaga CurrentUser al marcar una notificación como leída', () => {
+  it('propaga CurrentUser al marcar una notificación como leída', async () => {
     mockService.marcarLeida.mockReturnValue({ count: 1 });
 
-    controller.marcarLeida(9, user);
+    await controller.marcarLeida(9, user);
 
     expect(mockService.marcarLeida).toHaveBeenCalledWith(9, user);
   });
 
-  it('propaga CurrentUser en DELETE de notificaciones', () => {
+  it('propaga CurrentUser en DELETE de notificaciones', async () => {
     mockService.remove.mockReturnValue({ message: 'Notificación eliminada.' });
 
-    controller.remove(9, user);
+    await controller.remove(9, user);
 
     expect(mockService.remove).toHaveBeenCalledWith(9, user);
   });

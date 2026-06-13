@@ -1,4 +1,12 @@
-import { Controller, Delete, Get, Patch, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Param,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { NotificacionesService } from './notificaciones.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -38,7 +46,10 @@ export class NotificacionesController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.notificacionesService.remove(id, user);
   }
 }

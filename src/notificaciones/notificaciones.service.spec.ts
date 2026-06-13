@@ -20,7 +20,13 @@ const mockPrisma = {
   },
 };
 
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
+const clienteUser = {
+  sub: 2,
+  role: ROLES.CLIENTE,
+  name: 'Cliente',
+  email: 'cliente@test.com',
+  clinicaId: 1,
+};
 
 describe('NotificacionesService', () => {
   let service: NotificacionesService;
@@ -44,7 +50,11 @@ describe('NotificacionesService', () => {
 
     expect(mockPrisma.notificaciones.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id_usuario_destino: 2, destino: { id_clinica: 1 }, leida: false },
+        where: {
+          id_usuario_destino: 2,
+          destino: { id_clinica: 1 },
+          leida: false,
+        },
       }),
     );
   });
@@ -54,7 +64,11 @@ describe('NotificacionesService', () => {
 
     await expect(service.count(clienteUser)).resolves.toEqual({ count: 3 });
     expect(mockPrisma.notificaciones.count).toHaveBeenCalledWith({
-      where: { id_usuario_destino: 2, leida: false, destino: { id_clinica: 1 } },
+      where: {
+        id_usuario_destino: 2,
+        leida: false,
+        destino: { id_clinica: 1 },
+      },
     });
   });
 
@@ -64,7 +78,11 @@ describe('NotificacionesService', () => {
     await service.marcarLeida(9, clienteUser);
 
     expect(mockPrisma.notificaciones.updateMany).toHaveBeenCalledWith({
-      where: { id_notificacion: 9, id_usuario_destino: 2, destino: { id_clinica: 1 } },
+      where: {
+        id_notificacion: 9,
+        id_usuario_destino: 2,
+        destino: { id_clinica: 1 },
+      },
       data: { leida: true },
     });
   });
@@ -79,7 +97,9 @@ describe('NotificacionesService', () => {
 
     await service.remove(9, clienteUser);
 
-    expect(mockPrisma.notificaciones.delete).toHaveBeenCalledWith({ where: { id_notificacion: 9 } });
+    expect(mockPrisma.notificaciones.delete).toHaveBeenCalledWith({
+      where: { id_notificacion: 9 },
+    });
   });
 
   it('rechaza eliminar notificación ajena o de otra clínica', async () => {
@@ -89,13 +109,17 @@ describe('NotificacionesService', () => {
       destino: { id_usuario: 99, id_clinica: 1 },
     });
 
-    await expect(service.remove(9, clienteUser)).rejects.toThrow(ForbiddenException);
+    await expect(service.remove(9, clienteUser)).rejects.toThrow(
+      ForbiddenException,
+    );
   });
 
   it('lanza NotFoundException al eliminar notificación inexistente', async () => {
     mockPrisma.notificaciones.findUnique.mockResolvedValue(null);
 
-    await expect(service.remove(99, clienteUser)).rejects.toThrow(NotFoundException);
+    await expect(service.remove(99, clienteUser)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('crea notificación si origen y destino son de la misma clínica', async () => {
@@ -107,13 +131,15 @@ describe('NotificacionesService', () => {
     await service.crearParaUsuario(2, 'Título', 'Mensaje', 'general', 1);
 
     expect(mockPrisma.notificaciones.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+      data: {
         titulo: 'Título',
         mensaje: 'Mensaje',
         tipo: 'general',
         id_usuario_destino: 2,
         id_usuario_origen: 1,
-      }),
+        referencia_id: null,
+        referencia_tipo: null,
+      },
     });
   });
 
@@ -122,11 +148,16 @@ describe('NotificacionesService', () => {
       .mockResolvedValueOnce({ id_clinica: 1 })
       .mockResolvedValueOnce({ id_clinica: 2 });
 
-    await expect(service.crearParaUsuario(2, 'Título', 'Mensaje', 'general', 1)).rejects.toThrow(ForbiddenException);
+    await expect(
+      service.crearParaUsuario(2, 'Título', 'Mensaje', 'general', 1),
+    ).rejects.toThrow(ForbiddenException);
   });
 
   it('crea notificaciones para administradores de la clínica indicada', async () => {
-    mockPrisma.usuarios.findMany.mockResolvedValue([{ id_usuario: 1 }, { id_usuario: 3 }]);
+    mockPrisma.usuarios.findMany.mockResolvedValue([
+      { id_usuario: 1 },
+      { id_usuario: 3 },
+    ]);
     mockPrisma.notificaciones.createMany.mockResolvedValue({ count: 2 });
 
     await service.crearParaAdmins('Título', 'Mensaje', 'general', 1, 2);
@@ -137,8 +168,14 @@ describe('NotificacionesService', () => {
     });
     expect(mockPrisma.notificaciones.createMany).toHaveBeenCalledWith({
       data: [
-        expect.objectContaining({ id_usuario_destino: 1, id_usuario_origen: 2 }),
-        expect.objectContaining({ id_usuario_destino: 3, id_usuario_origen: 2 }),
+        expect.objectContaining({
+          id_usuario_destino: 1,
+          id_usuario_origen: 2,
+        }),
+        expect.objectContaining({
+          id_usuario_destino: 3,
+          id_usuario_origen: 2,
+        }),
       ],
     });
   });

@@ -13,7 +13,10 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtPayload } from '../common/types/jwt-payload.type';
-import { AUTH_COOKIE_NAME, CSRF_COOKIE_NAME } from './constants/auth-cookies.constant';
+import {
+  AUTH_COOKIE_NAME,
+  CSRF_COOKIE_NAME,
+} from './constants/auth-cookies.constant';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -26,7 +29,10 @@ export class AuthController {
   @Public()
   @Throttle({ global: { limit: 5, ttl: 60000 } })
   @Post('register')
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const { token, user } = await this.authService.register(dto);
     const csrfToken = this.setAuthCookies(res, token);
     return { user, csrfToken };
@@ -35,7 +41,10 @@ export class AuthController {
   @Public()
   @Throttle({ global: { limit: 10, ttl: 60000 } })
   @Post('login')
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.login(dto);
     if (!result.token) return result;
     const csrfToken = this.setAuthCookies(res, result.token);
@@ -45,7 +54,10 @@ export class AuthController {
   @Public()
   @Throttle({ global: { limit: 10, ttl: 60000 } })
   @Post('google')
-  async googleAuth(@Body() dto: GoogleAuthDto, @Res({ passthrough: true }) res: Response) {
+  async googleAuth(
+    @Body() dto: GoogleAuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.googleAuth(dto);
     if (!result.token) return result;
     const csrfToken = this.setAuthCookies(res, result.token);
@@ -105,7 +117,9 @@ export class AuthController {
   }
 
   private cookieOptions(httpOnly = true): CookieOptions {
-    const sameSite = (this.config.get<string>('AUTH_COOKIE_SAMESITE') ?? 'lax').toLowerCase();
+    const sameSite = (
+      this.config.get<string>('AUTH_COOKIE_SAMESITE') ?? 'lax'
+    ).toLowerCase();
     const secureConfig = this.config.get<string>('AUTH_COOKIE_SECURE');
     const secure =
       secureConfig === undefined
@@ -123,7 +137,9 @@ export class AuthController {
   }
 
   private authCookieMaxAgeMs() {
-    const days = Number(this.config.get<string>('AUTH_COOKIE_MAX_AGE_DAYS') ?? '10');
+    const days = Number(
+      this.config.get<string>('AUTH_COOKIE_MAX_AGE_DAYS') ?? '10',
+    );
     return days * 24 * 60 * 60 * 1000;
   }
 

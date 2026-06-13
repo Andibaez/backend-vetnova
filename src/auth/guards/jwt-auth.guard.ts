@@ -24,8 +24,14 @@ export class JwtAuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest<{ headers: Record<string, string | undefined>; user?: JwtPayload }>();
-    const token = this.extractCookie(request.headers.cookie ?? '', AUTH_COOKIE_NAME);
+    const request = context.switchToHttp().getRequest<{
+      headers: Record<string, string | undefined>;
+      user?: JwtPayload;
+    }>();
+    const token = this.extractCookie(
+      request.headers.cookie ?? '',
+      AUTH_COOKIE_NAME,
+    );
 
     if (!token) {
       throw new UnauthorizedException('Token de autenticación requerido.');

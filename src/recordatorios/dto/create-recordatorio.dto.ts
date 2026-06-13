@@ -1,4 +1,10 @@
-import { IsDateString, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 const ESTADOS = ['pendiente', 'enviado', 'cancelado'] as const;
 

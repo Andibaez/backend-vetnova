@@ -22,9 +22,27 @@ const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: 1 };
+const adminUser = {
+  sub: 1,
+  role: ROLES.ADMIN,
+  name: 'Admin',
+  email: 'admin@test.com',
+  clinicaId: 1,
+};
+const clienteUser = {
+  sub: 2,
+  role: ROLES.CLIENTE,
+  name: 'Cliente',
+  email: 'cliente@test.com',
+  clinicaId: 1,
+};
+const vetUser = {
+  sub: 3,
+  role: ROLES.VETERINARIO,
+  name: 'Vet',
+  email: 'vet@test.com',
+  clinicaId: 1,
+};
 
 describe('PropietariosService', () => {
   let service: PropietariosService;
@@ -46,17 +64,23 @@ describe('PropietariosService', () => {
 
   describe('findAll', () => {
     it('cliente solo ve su propio propietario', async () => {
-      mockPrisma.propietarios.findMany.mockResolvedValue([{ id_propietario: 1 }]);
+      mockPrisma.propietarios.findMany.mockResolvedValue([
+        { id_propietario: 1 },
+      ]);
 
       await service.findAll(clienteUser);
 
       expect(mockPrisma.propietarios.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id_usuario: clienteUser.sub, id_clinica: 1 } }),
+        expect.objectContaining({
+          where: { id_usuario: clienteUser.sub, id_clinica: 1 },
+        }),
       );
     });
 
     it('veterinario solo ve propietarios de sus pacientes', async () => {
-      mockPrisma.veterinarios.findUnique.mockResolvedValue({ id_veterinario: 7 });
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 7,
+      });
       mockPrisma.propietarios.findMany.mockResolvedValue([]);
 
       await service.findAll(vetUser);
@@ -106,16 +130,28 @@ describe('PropietariosService', () => {
   describe('findOne', () => {
     it('lanza NotFoundException si no existe', async () => {
       mockPrisma.propietarios.findUnique.mockResolvedValue(null);
-      await expect(service.findOne(99, adminUser)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(99, adminUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('cliente no puede ver propietario de otro usuario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 99, id_clinica: 1 });
-      await expect(service.findOne(1, clienteUser)).rejects.toThrow(ForbiddenException);
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 1,
+        id_usuario: 99,
+        id_clinica: 1,
+      });
+      await expect(service.findOne(1, clienteUser)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('cliente puede ver su propio propietario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 2, id_clinica: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 1,
+        id_usuario: 2,
+        id_clinica: 1,
+      });
       const result = await service.findOne(1, clienteUser);
       expect(result).toBeDefined();
     });
@@ -126,11 +162,16 @@ describe('PropietariosService', () => {
   describe('deletePropietario', () => {
     it('lanza NotFoundException si no existe', async () => {
       mockPrisma.propietarios.findUnique.mockResolvedValue(null);
-      await expect(service.deletePropietario(99, adminUser)).rejects.toThrow(NotFoundException);
+      await expect(service.deletePropietario(99, adminUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('desvincula facturas antes de eliminar', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_clinica: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({
+        id_propietario: 1,
+        id_clinica: 1,
+      });
       mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
         for (const op of ops) await op;
       });

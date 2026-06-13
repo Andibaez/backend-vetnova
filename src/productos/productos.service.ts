@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -11,8 +11,9 @@ export class ProductosService {
   constructor(private readonly prisma: PrismaService) {}
 
   findAll(user: JwtPayload) {
+    const where = user.role === ROLES.SUPER_ADMIN ? {} : { id_clinica: this.requireClinicaId(user) };
     return this.prisma.productos.findMany({
-      where: { ...tenantWhere(user) },
+      where,
       orderBy: { nombre: 'asc' },
     });
   }
@@ -27,7 +28,7 @@ export class ProductosService {
   }
 
   create(dto: CreateProductoDto, user: JwtPayload) {
-    return this.prisma.productos.create({ data: { ...dto, id_clinica: user.clinicaId } });
+    return this.prisma.productos.create({ data: { ...dto, id_clinica: this.requireClinicaId(user) } });
   }
 
   async update(id: number, dto: UpdateProductoDto, user: JwtPayload) {
@@ -51,5 +52,12 @@ export class ProductosService {
       this.prisma.productos.delete({ where: { id_producto: id } }),
     ]);
     return { message: 'Producto eliminado.' };
+  }
+
+  private requireClinicaId(user?: JwtPayload) {
+    if (!user?.clinicaId) {
+      throw new ForbiddenException('El usuario no tiene una clínica asociada.');
+    }
+    return user.clinicaId;
   }
 }

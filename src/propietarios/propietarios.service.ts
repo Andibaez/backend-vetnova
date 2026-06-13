@@ -14,11 +14,11 @@ export class PropietariosService {
   ) {}
 
   create(dto: CreatePropietarioDto, user: JwtPayload) {
-    return this.prisma.propietarios.create({ data: { ...dto, id_clinica: user.clinicaId } });
+    return this.prisma.propietarios.create({ data: { ...dto, id_clinica: this.requireClinicaId(user) } });
   }
 
   async findAll(user: JwtPayload, id_usuario?: number) {
-    const clinicaFilter = user.clinicaId ? { id_clinica: user.clinicaId } : {};
+    const clinicaFilter = user.role === ROLES.SUPER_ADMIN ? {} : { id_clinica: this.requireClinicaId(user) };
 
     if (user.role === ROLES.CLIENTE) {
       return this.prisma.propietarios.findMany({
@@ -103,5 +103,12 @@ export class PropietariosService {
     ]);
 
     return { message: 'Propietario eliminado.' };
+  }
+
+  private requireClinicaId(user?: JwtPayload) {
+    if (!user?.clinicaId) {
+      throw new ForbiddenException('El usuario no tiene una clínica asociada.');
+    }
+    return user.clinicaId;
   }
 }

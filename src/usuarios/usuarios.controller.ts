@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
@@ -9,7 +9,7 @@ import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { FindUsuariosDto } from './dto/find-usuarios.dto';
 
-@ApiBearerAuth()
+@ApiCookieAuth('vetnova-token')
 @ApiTags('usuarios')
 @Roles(ROLES.ADMIN)
 @Controller('usuarios')

@@ -22,9 +22,9 @@ const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
+const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
+const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
+const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: 1 };
 
 describe('PropietariosService', () => {
   let service: PropietariosService;
@@ -51,7 +51,7 @@ describe('PropietariosService', () => {
       await service.findAll(clienteUser);
 
       expect(mockPrisma.propietarios.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id_usuario: clienteUser.sub } }),
+        expect.objectContaining({ where: { id_usuario: clienteUser.sub, id_clinica: 1 } }),
       );
     });
 
@@ -65,6 +65,7 @@ describe('PropietariosService', () => {
         expect.objectContaining({
           where: {
             mascotas: { some: { citas: { some: { id_veterinario: 7 } } } },
+            id_clinica: 1,
           },
         }),
       );
@@ -85,7 +86,7 @@ describe('PropietariosService', () => {
       await service.findAll(adminUser);
 
       expect(mockPrisma.propietarios.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: undefined }),
+        expect.objectContaining({ where: { id_clinica: 1 } }),
       );
     });
 
@@ -95,7 +96,7 @@ describe('PropietariosService', () => {
       await service.findAll(adminUser, 5);
 
       expect(mockPrisma.propietarios.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id_usuario: 5 } }),
+        expect.objectContaining({ where: { id_usuario: 5, id_clinica: 1 } }),
       );
     });
   });
@@ -109,12 +110,12 @@ describe('PropietariosService', () => {
     });
 
     it('cliente no puede ver propietario de otro usuario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 99, id_clinica: null });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 99, id_clinica: 1 });
       await expect(service.findOne(1, clienteUser)).rejects.toThrow(ForbiddenException);
     });
 
     it('cliente puede ver su propio propietario', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 2, id_clinica: null });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_usuario: 2, id_clinica: 1 });
       const result = await service.findOne(1, clienteUser);
       expect(result).toBeDefined();
     });
@@ -129,7 +130,7 @@ describe('PropietariosService', () => {
     });
 
     it('desvincula facturas antes de eliminar', async () => {
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_clinica: null });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_clinica: 1 });
       mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
         for (const op of ops) await op;
       });

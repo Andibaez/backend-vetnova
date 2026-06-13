@@ -12,6 +12,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
@@ -40,11 +41,8 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
 
-    // El registro público nunca puede crear Administradores ni SuperAdministradores
-    const roleName: RoleName =
-      dto.rol && dto.rol !== ROLES.ADMIN && dto.rol !== ROLES.SUPER_ADMIN
-        ? (dto.rol as RoleName)
-        : ROLES.CLIENTE;
+    // El registro público siempre crea clientes. Otros roles se gestionan desde usuarios internos.
+    const roleName: RoleName = ROLES.CLIENTE;
 
     const clinica = await this.resolveClinicaBySlug(dto.clinicaSlug);
 
@@ -100,7 +98,7 @@ export class AuthService {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const candidates = await this.prisma.usuarios.findMany({
       where: { email: normalizedEmail },
-      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true, estado: true } } },
     });
 
     if (candidates.length === 0) {
@@ -133,6 +131,7 @@ export class AuthService {
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
+    this.assertAuthenticatedClinic(user, roleName, dto.clinicaSlug);
 
     // Crear perfil si por alguna razón no existe aún
     await this.ensureRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName, user.id_clinica);
@@ -161,7 +160,7 @@ export class AuthService {
     const normalizedEmail = payload.email.trim().toLowerCase();
     const candidates = await this.prisma.usuarios.findMany({
       where: { email: normalizedEmail },
-      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true, estado: true } } },
     });
 
     let user = dto.clinicaSlug
@@ -185,17 +184,18 @@ export class AuthService {
           data: {
             nombre: (payload.name ?? normalizedEmail).trim(),
             email: normalizedEmail,
-            password: await bcrypt.hash(Math.random().toString(36), 10),
+            password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
             id_rol: rol.id_rol,
             id_clinica: clinica.id_clinica,
           },
-          include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+          include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true, estado: true } } },
         });
         await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, ROLES.CLIENTE, clinica.id_clinica);
       }
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
+    this.assertAuthenticatedClinic(user, roleName, dto.clinicaSlug);
     const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
     return {
       token,
@@ -221,7 +221,7 @@ export class AuthService {
     if (!slug) {
       throw new BadRequestException('Debes registrarte a través del enlace de tu clínica.');
     }
-    const clinica = await this.prisma.clinicas.findUnique({ where: { slug } });
+    const clinica = await this.prisma.clinicas.findUnique({ where: { slug: slug.trim().toLowerCase() } });
     if (!clinica || clinica.estado !== 'activa') {
       throw new BadRequestException('Enlace de registro de clínica inválido o inactivo.');
     }
@@ -236,6 +236,7 @@ export class AuthService {
     id_clinica: number | null,
   ) {
     if (role === ROLES.CLIENTE) {
+      if (!id_clinica) throw new BadRequestException('El cliente debe tener una clínica asociada.');
       await this.prisma.propietarios.create({
         data: { nombre, email, id_usuario, id_clinica },
       });
@@ -252,6 +253,7 @@ export class AuthService {
     id_clinica: number | null,
   ) {
     if (role === ROLES.CLIENTE) {
+      if (!id_clinica) throw new BadRequestException('El cliente debe tener una clínica asociada.');
       const exists = await this.prisma.propietarios.findUnique({ where: { id_usuario } });
       if (!exists) await this.prisma.propietarios.create({ data: { nombre, email, id_usuario, id_clinica } });
     } else if (role === ROLES.VETERINARIO) {
@@ -321,6 +323,26 @@ export class AuthService {
       rol = await this.prisma.roles.create({ data: { nombre } });
     }
     return rol;
+  }
+
+  private assertAuthenticatedClinic(
+    user: {
+      id_clinica: number | null;
+      clinicas?: { slug: string; estado: string; nombre?: string | null } | null;
+    },
+    role: RoleName,
+    clinicaSlug?: string,
+  ) {
+    if (role === ROLES.SUPER_ADMIN) return;
+    if (!user.id_clinica || !user.clinicas) {
+      throw new UnauthorizedException('El usuario no tiene una clínica asociada.');
+    }
+    if (clinicaSlug && user.clinicas.slug !== clinicaSlug.trim().toLowerCase()) {
+      throw new UnauthorizedException('No perteneces a la clínica seleccionada.');
+    }
+    if (user.clinicas.estado !== 'activa') {
+      throw new UnauthorizedException('La clínica no está activa.');
+    }
   }
 
   private signToken(id: number, name: string, email: string, role: RoleName, clinicaId: number | null = null) {

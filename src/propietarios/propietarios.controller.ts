@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { PropietariosService } from './propietarios.service';
 import { CreatePropietarioDto } from './dto/create-propietario.dto';
 import { UpdatePropietarioDto } from './dto/update-propietario.dto';
@@ -8,7 +8,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
-@ApiBearerAuth()
+@ApiCookieAuth('vetnova-token')
 @ApiTags('propietarios')
 @Controller('propietarios')
 export class PropietariosController {

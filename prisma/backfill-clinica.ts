@@ -21,19 +21,25 @@ async function main() {
   const id_clinica = principal.id_clinica;
 
   const resultados = await Promise.all([
-    prisma.usuarios.updateMany({
-      where: { id_clinica: null, roles: { nombre: { not: 'SuperAdministrador' } } },
-      data: { id_clinica },
-    }),
-    prisma.propietarios.updateMany({ where: { id_clinica: null }, data: { id_clinica } }),
-    prisma.mascotas.updateMany({ where: { id_clinica: null }, data: { id_clinica } }),
-    prisma.citas.updateMany({ where: { id_clinica: null }, data: { id_clinica } }),
-    prisma.productos.updateMany({ where: { id_clinica: null }, data: { id_clinica } }),
-    prisma.servicios.updateMany({ where: { id_clinica: null }, data: { id_clinica } }),
+    prisma.$executeRaw`
+      UPDATE usuarios
+      SET id_clinica = ${id_clinica}
+      WHERE id_clinica IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM roles
+          WHERE roles.id_rol = usuarios.id_rol
+            AND roles.nombre = 'SuperAdministrador'
+        )
+    `,
+    prisma.$executeRaw`UPDATE propietarios SET id_clinica = ${id_clinica} WHERE id_clinica IS NULL`,
+    prisma.$executeRaw`UPDATE mascotas SET id_clinica = ${id_clinica} WHERE id_clinica IS NULL`,
+    prisma.$executeRaw`UPDATE citas SET id_clinica = ${id_clinica} WHERE id_clinica IS NULL`,
+    prisma.$executeRaw`UPDATE productos SET id_clinica = ${id_clinica} WHERE id_clinica IS NULL`,
+    prisma.$executeRaw`UPDATE servicios SET id_clinica = ${id_clinica} WHERE id_clinica IS NULL`,
   ]);
 
   const tablas = ['usuarios', 'propietarios', 'mascotas', 'citas', 'productos', 'servicios'];
-  resultados.forEach((r, i) => console.log(`  ✔ ${tablas[i]}: ${r.count} registros actualizados`));
+  resultados.forEach((count, i) => console.log(`  ✔ ${tablas[i]}: ${count} registros actualizados`));
 
   console.log('\n🎉 Backfill completado.');
 }

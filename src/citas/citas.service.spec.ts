@@ -18,6 +18,7 @@ const mockPrisma = {
   mascotas: { findUnique: jest.fn() },
   propietarios: { findUnique: jest.fn() },
   veterinarios: { findUnique: jest.fn(), findFirst: jest.fn() },
+  usuarios: { findUnique: jest.fn() },
 };
 
 const mockNotificaciones = {
@@ -25,14 +26,14 @@ const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
+const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
+const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
+const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: 1 };
 
-const mascota = { id_mascota: 10, id_propietario: 5 };
-const propietario = { id_propietario: 5, id_usuario: 2 };
+const mascota = { id_mascota: 10, id_propietario: 5, id_clinica: 1 };
+const propietario = { id_propietario: 5, id_usuario: 2, id_clinica: 1 };
 const citaBase = {
-  id_cita: 1, id_mascota: 10, id_usuario: 2, id_veterinario: null, id_clinica: null,
+  id_cita: 1, id_mascota: 10, id_usuario: 2, id_veterinario: null, id_clinica: 1,
   fecha: new Date(), hora: '10:00', estado: 'pendiente',
   mascotas: { nombre: 'Firulais', propietario },
   usuarios: { id_usuario: 2, nombre: 'Cliente' },
@@ -53,6 +54,7 @@ describe('CitasService', () => {
 
     service = module.get<CitasService>(CitasService);
     jest.clearAllMocks();
+    mockPrisma.usuarios.findUnique.mockResolvedValue({ id_clinica: 1 });
   });
 
   // ── create ───────────────────────────────────────────────────
@@ -66,8 +68,8 @@ describe('CitasService', () => {
     });
 
     it('cliente no puede crear cita para mascota de otro propietario', async () => {
-      mockPrisma.mascotas.findUnique.mockResolvedValue({ id_mascota: 10, id_propietario: 999 });
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 5, id_usuario: 2 });
+      mockPrisma.mascotas.findUnique.mockResolvedValue({ id_mascota: 10, id_propietario: 999, id_clinica: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue(propietario);
 
       await expect(
         service.create({ fecha: '2026-07-01', hora: '10:00', id_mascota: 10 }, clienteUser),
@@ -92,7 +94,11 @@ describe('CitasService', () => {
     it('notifica al veterinario cuando se le asigna una cita', async () => {
       mockPrisma.mascotas.findUnique.mockResolvedValue(mascota);
       mockPrisma.propietarios.findUnique.mockResolvedValue(propietario);
-      mockPrisma.veterinarios.findUnique.mockResolvedValue({ id_veterinario: 7, id_usuario: 3 });
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 7,
+        id_usuario: 3,
+        usuarios: { id_clinica: 1 },
+      });
       mockPrisma.citas.create.mockResolvedValue({ ...citaBase, id_veterinario: 7 });
       mockNotificaciones.crearParaAdmins.mockResolvedValue(undefined);
       mockNotificaciones.crearParaUsuario.mockResolvedValue(undefined);

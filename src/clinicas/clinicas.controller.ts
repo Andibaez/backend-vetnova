@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { ClinicasService } from './clinicas.service';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
 import { UpdateClinicaDto } from './dto/update-clinica.dto';
@@ -24,28 +24,28 @@ export class ClinicasController {
     return this.clinicasService.findBySlug(slug);
   }
 
-  @ApiBearerAuth()
+  @ApiCookieAuth('vetnova-token')
   @Roles(ROLES.SUPER_ADMIN)
   @Get()
   findAll() {
     return this.clinicasService.findAll();
   }
 
-  @ApiBearerAuth()
+  @ApiCookieAuth('vetnova-token')
   @Roles(ROLES.SUPER_ADMIN)
   @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.clinicasService.findOne(id);
   }
 
-  @ApiBearerAuth()
+  @ApiCookieAuth('vetnova-token')
   @Roles(ROLES.SUPER_ADMIN)
   @Post()
   create(@Body() dto: CreateClinicaDto) {
     return this.clinicasService.create(dto);
   }
 
-  @ApiBearerAuth()
+  @ApiCookieAuth('vetnova-token')
   @Roles(ROLES.SUPER_ADMIN)
   @Put(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateClinicaDto) {

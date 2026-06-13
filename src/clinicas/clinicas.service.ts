@@ -41,6 +41,9 @@ export class ClinicasService {
     if (existingSlug) throw new ConflictException('Ya existe una clínica con ese slug.');
 
     const adminEmail = dto.adminEmail.trim().toLowerCase();
+    const existingAdmin = await this.prisma.usuarios.findFirst({ where: { email: adminEmail } });
+    if (existingAdmin) throw new ConflictException('Ya existe un usuario con ese correo.');
+
     const hashed = await bcrypt.hash(dto.adminPassword, 10);
 
     return this.prisma.$transaction(async (tx) => {

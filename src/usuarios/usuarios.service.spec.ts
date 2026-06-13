@@ -18,7 +18,6 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
   },
-  recepcionistas: { deleteMany: jest.fn() },
   veterinarios: { findUnique: jest.fn(), deleteMany: jest.fn() },
   citas: { updateMany: jest.fn() },
   consultas: { updateMany: jest.fn() },
@@ -30,9 +29,9 @@ const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
+const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: 1 };
+const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: 1 };
+const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: 1 };
 
 describe('UsuariosService', () => {
   let service: UsuariosService;
@@ -53,7 +52,7 @@ describe('UsuariosService', () => {
   // ── update ───────────────────────────────────────────────────
 
   describe('update', () => {
-    const existingUser = { id_usuario: 2, email: 'a@b.com', password: 'hashed', nombre: 'Test', id_clinica: null };
+    const existingUser = { id_usuario: 2, email: 'a@b.com', password: 'hashed', nombre: 'Test', id_clinica: 1 };
 
     it('lanza NotFoundException si el usuario no existe', async () => {
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
@@ -103,11 +102,10 @@ describe('UsuariosService', () => {
     });
 
     it('ejecuta transacción con desvinculación de registros relacionados', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({ id_usuario: 1, id_clinica: null });
+      mockPrisma.usuarios.findUnique.mockResolvedValue({ id_usuario: 1, id_clinica: 1 });
       mockPrisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
           veterinarios: { findUnique: jest.fn().mockResolvedValue(null), deleteMany: jest.fn() },
-          recepcionistas: { deleteMany: jest.fn() },
           citas: { updateMany: jest.fn() },
           consultas: { updateMany: jest.fn() },
           propietarios: { updateMany: jest.fn() },

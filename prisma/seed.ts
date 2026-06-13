@@ -7,7 +7,7 @@ async function main() {
   console.log('🌱 Seeding roles y usuario administrador...');
 
   // 1. Crear todos los roles si no existen
-  const roles = ['SuperAdministrador', 'Administrador', 'Veterinario', 'Recepcionista', 'Cliente'];
+  const roles = ['SuperAdministrador', 'Administrador', 'Veterinario', 'Cliente'];
   for (const nombre of roles) {
     await prisma.roles.upsert({
       where: { nombre },

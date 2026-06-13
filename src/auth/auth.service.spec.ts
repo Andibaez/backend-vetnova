@@ -172,10 +172,10 @@ describe('AuthService', () => {
     it('retorna token y datos del usuario en login exitoso', async () => {
       const hashed = await bcrypt.hash('Pass1@test', 10);
       mockPrisma.usuarios.findMany.mockResolvedValue([{
-        id_usuario: 1, nombre: 'Test', email: 'a@b.com', id_clinica: null,
-        password: hashed, roles: { nombre: 'Cliente' }, clinicas: null,
+        id_usuario: 1, nombre: 'Test', email: 'a@b.com', id_clinica: 1,
+        password: hashed, roles: { nombre: 'Cliente' }, clinicas: clinicaTest,
       }]);
-      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1 });
+      mockPrisma.propietarios.findUnique.mockResolvedValue({ id_propietario: 1, id_clinica: 1 });
 
       const result = await service.login({ email: 'a@b.com', password: 'Pass1@test' });
 

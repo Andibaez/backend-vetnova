@@ -45,20 +45,25 @@ export class UsuariosService {
   }
 
   async create(dto: CreateUsuarioDto, user: JwtPayload) {
+    const clinicaId = this.requireClinicaId(user);
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.usuarios.findFirst({
-      where: { email, id_clinica: user.clinicaId },
+      where: { email, id_clinica: clinicaId },
     });
     if (existing) throw new ConflictException('Ya existe una cuenta con ese correo en esta clínica.');
 
     const roleName: RoleName = (dto.rol as RoleName) ?? ROLES.CLIENTE;
+    if (roleName === ROLES.SUPER_ADMIN) {
+      throw new ForbiddenException('No puedes crear usuarios SuperAdministrador desde una clínica.');
+    }
     const rol = await this.findOrCreateRole(roleName);
     const hashed = await bcrypt.hash(dto.password, 10);
 
     const created = await this.prisma.usuarios.create({
-      data: { nombre: dto.nombre.trim(), email, password: hashed, id_rol: rol.id_rol, id_clinica: user.clinicaId },
+      data: { nombre: dto.nombre.trim(), email, password: hashed, id_rol: rol.id_rol, id_clinica: clinicaId },
       include: { roles: true },
     });
+    await this.createRoleProfile(created.id_usuario, created.nombre, created.email, roleName, clinicaId);
     return this.sanitize(created);
   }
 
@@ -89,6 +94,9 @@ export class UsuariosService {
       data.password = await bcrypt.hash(dto.password, 10);
     }
     if (dto.rol) {
+      if (dto.rol === ROLES.SUPER_ADMIN) {
+        throw new ForbiddenException('No puedes asignar el rol SuperAdministrador desde una clínica.');
+      }
       const rol = await this.findOrCreateRole(dto.rol);
       data.id_rol = rol.id_rol;
     }
@@ -128,7 +136,6 @@ export class UsuariosService {
         });
       }
 
-      await tx.recepcionistas.deleteMany({ where: { id_usuario: id } });
       await tx.veterinarios.deleteMany({ where: { id_usuario: id } });
       await tx.citas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } });
       await tx.consultas.updateMany({ where: { id_usuario: id }, data: { id_usuario: null } });
@@ -145,17 +152,42 @@ export class UsuariosService {
     return rol;
   }
 
+  private requireClinicaId(user?: JwtPayload) {
+    if (!user?.clinicaId) {
+      throw new ForbiddenException('El usuario no tiene una clínica asociada.');
+    }
+    return user.clinicaId;
+  }
+
+  private async createRoleProfile(
+    id_usuario: number,
+    nombre: string | null,
+    email: string,
+    role: RoleName,
+    clinicaId: number,
+  ) {
+    if (role === ROLES.CLIENTE) {
+      await this.prisma.propietarios.create({
+        data: { nombre, email, id_usuario, id_clinica: clinicaId },
+      });
+    } else if (role === ROLES.VETERINARIO) {
+      await this.prisma.veterinarios.create({ data: { id_usuario } });
+    }
+  }
+
   private sanitize(user: {
     id_usuario: number;
     nombre: string | null;
     email: string;
     roles?: { nombre: string } | null;
+    id_clinica?: number | null;
   }) {
     return {
       id: user.id_usuario,
       nombre: user.nombre,
       email: user.email,
       rol: user.roles?.nombre ?? ROLES.CLIENTE,
+      clinicaId: user.id_clinica,
     };
   }
 }

@@ -16,9 +16,13 @@ export class MascotasService {
   ) {}
 
   async create(dto: CreateMascotaDto, user: JwtPayload) {
+    const clinicaId = this.requireClinicaId(user);
     if (user.role === ROLES.CLIENTE) {
       const prop = await this.prisma.propietarios.findUnique({ where: { id_usuario: user.sub } });
       if (!prop) throw new ForbiddenException('No tienes un perfil de propietario.');
+      if (prop.id_clinica !== clinicaId) {
+        throw new ForbiddenException('Tu perfil no pertenece a esta clínica.');
+      }
       if (dto.id_propietario && dto.id_propietario !== prop.id_propietario) {
         throw new ForbiddenException('Solo puedes registrar mascotas a tu propio perfil.');
       }
@@ -28,16 +32,19 @@ export class MascotasService {
         where: { id_propietario: dto.id_propietario },
       });
       if (!propietario) throw new BadRequestException('Propietario no existe');
+      if (propietario.id_clinica !== clinicaId) {
+        throw new ForbiddenException('El propietario no pertenece a tu clínica.');
+      }
     }
 
-    const mascota = await this.prisma.mascotas.create({ data: { ...dto, id_clinica: user.clinicaId } });
+    const mascota = await this.prisma.mascotas.create({ data: { ...dto, id_clinica: clinicaId } });
 
     if (user.role === ROLES.CLIENTE) {
       await this.notificaciones.crearParaAdmins(
         'Nueva mascota registrada',
         `${user.name} registró a ${mascota.nombre ?? 'una mascota'} (${mascota.especie ?? 'sin especie'}) en su perfil.`,
         'nueva_mascota',
-        user.clinicaId,
+        clinicaId,
         user.sub,
         mascota.id_mascota,
         'mascota',
@@ -98,6 +105,12 @@ export class MascotasService {
     if (user.role === ROLES.CLIENTE) {
       throw new ForbiddenException('Los clientes no pueden modificar mascotas directamente.');
     }
+    if (dto.id_propietario !== undefined) {
+      const propietario = await this.prisma.propietarios.findUnique({ where: { id_propietario: dto.id_propietario } });
+      if (!propietario || propietario.id_clinica !== this.requireClinicaId(user)) {
+        throw new ForbiddenException('El propietario no pertenece a tu clínica.');
+      }
+    }
     return this.prisma.mascotas.update({ where: { id_mascota: id }, data: dto });
   }
 
@@ -121,5 +134,12 @@ export class MascotasService {
     ]);
 
     return { message: 'Mascota eliminada.' };
+  }
+
+  private requireClinicaId(user?: JwtPayload) {
+    if (!user?.clinicaId) {
+      throw new ForbiddenException('El usuario no tiene una clínica asociada.');
+    }
+    return user.clinicaId;
   }
 }

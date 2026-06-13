@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsLatitude, IsLongitude, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 export class CreateClinicaDto {
   @IsString()
@@ -25,6 +25,14 @@ export class CreateClinicaDto {
   @IsEmail()
   @MaxLength(100)
   email?: string;
+
+  @IsOptional()
+  @IsLatitude()
+  latitud?: number;
+
+  @IsOptional()
+  @IsLongitude()
+  longitud?: number;
 
   @IsString()
   adminNombre: string;

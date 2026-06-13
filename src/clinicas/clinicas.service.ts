@@ -22,7 +22,7 @@ export class ClinicasService {
   async findActivas() {
     return this.prisma.clinicas.findMany({
       where: { estado: 'activa' },
-      select: { nombre: true, slug: true },
+      select: { nombre: true, slug: true, direccion: true, latitud: true, longitud: true },
       orderBy: { nombre: 'asc' },
     });
   }
@@ -51,6 +51,8 @@ export class ClinicasService {
           direccion: dto.direccion,
           telefono: dto.telefono,
           email: dto.email,
+          latitud: dto.latitud,
+          longitud: dto.longitud,
         },
       });
 

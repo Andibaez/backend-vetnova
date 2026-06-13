@@ -15,6 +15,8 @@ model clinicas {
   direccion    String?
   telefono     String?        @db.VarChar(20)
   email        String?        @db.VarChar(100)
+  latitud      Float?
+  longitud     Float?
   estado       String         @default("activa") @db.VarChar(20)
   created_at   DateTime       @default(now()) @db.Timestamp(6)
   citas        citas[]

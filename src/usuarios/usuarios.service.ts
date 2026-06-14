@@ -23,13 +23,19 @@ export class UsuariosService {
   ) {}
 
   async findAll(user: JwtPayload, rol?: string, pagination: PaginationDto = {}) {
+    const isAdmin = user.role === ROLES.ADMIN || user.role === ROLES.SUPER_ADMIN;
+    if (!isAdmin && rol !== ROLES.VETERINARIO) {
+      throw new ForbiddenException('No tienes permiso para consultar este listado de usuarios.');
+    }
+
     const { take, skip } = paginate(pagination.page, pagination.limit);
     const where = { ...(rol ? { roles: { nombre: rol } } : {}), ...tenantWhere(user) };
     const [users, total] = await Promise.all([
       this.prisma.usuarios.findMany({ where: Object.keys(where).length ? where : undefined, include: { roles: true }, orderBy: { nombre: 'asc' }, take, skip }),
       this.prisma.usuarios.count({ where: Object.keys(where).length ? where : undefined }),
     ]);
-    return paginatedResponse(users.map((u) => this.sanitize(u)), total, pagination.page ?? 1, pagination.limit ?? 20);
+    const sanitized = isAdmin ? users.map((u) => this.sanitize(u)) : users.map((u) => this.sanitizePublic(u));
+    return paginatedResponse(sanitized, total, pagination.page ?? 1, pagination.limit ?? 20);
   }
 
   async findOne(id: number, user: JwtPayload) {
@@ -155,6 +161,18 @@ export class UsuariosService {
       id: user.id_usuario,
       nombre: user.nombre,
       email: user.email,
+      rol: user.roles?.nombre ?? ROLES.CLIENTE,
+    };
+  }
+
+  private sanitizePublic(user: {
+    id_usuario: number;
+    nombre: string | null;
+    roles?: { nombre: string } | null;
+  }) {
+    return {
+      id: user.id_usuario,
+      nombre: user.nombre,
       rol: user.roles?.nombre ?? ROLES.CLIENTE,
     };
   }

@@ -8,7 +8,7 @@ export class NotificacionesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(user: JwtPayload, soloNoLeidas?: boolean) {
-    return this.prisma.notificaciones.findMany({
+    const notificaciones = await this.prisma.notificaciones.findMany({
       where: {
         id_usuario_destino: user.sub,
         ...(soloNoLeidas ? { leida: false } : {}),
@@ -18,6 +18,25 @@ export class NotificacionesService {
         origen: { select: { nombre: true, email: true } },
       },
     });
+    return notificaciones.map((n) => this.toDto(n));
+  }
+
+  private toDto(n: {
+    id_notificacion: number;
+    titulo: string;
+    mensaje: string;
+    leida: boolean;
+    tipo: string;
+    created_at: Date;
+  }) {
+    return {
+      id: n.id_notificacion,
+      titulo: n.titulo,
+      mensaje: n.mensaje,
+      leida: n.leida,
+      tipo: n.tipo,
+      creadaEn: n.created_at.toISOString(),
+    };
   }
 
   async count(user: JwtPayload) {

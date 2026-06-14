@@ -3,11 +3,11 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CitasService } from './citas.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
 import { UpdateCitaDto } from './dto/update-cita.dto';
+import { FindCitasDto } from './dto/find-citas.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
-import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiBearerAuth()
 @ApiTags('citas')
@@ -23,8 +23,8 @@ export class CitasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
-  findAll(@CurrentUser() user: JwtPayload, @Query() pagination: PaginationDto) {
-    return this.citasService.findAll(user, pagination);
+  findAll(@CurrentUser() user: JwtPayload, @Query() query: FindCitasDto) {
+    return this.citasService.findAll(user, query);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)

@@ -16,6 +16,7 @@ import { FindUsuariosDto } from './dto/find-usuarios.dto';
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(@Query() query: FindUsuariosDto, @CurrentUser() user: JwtPayload) {
     return this.usuariosService.findAll(user, query.rol, { page: query.page, limit: query.limit });

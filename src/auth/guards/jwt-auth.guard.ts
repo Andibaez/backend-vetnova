@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { JwtPayload } from '../../common/types/jwt-payload.type';
+import { AUTH_COOKIE } from '../auth-cookies.util';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -23,14 +24,17 @@ export class JwtAuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest<{ headers: Record<string, string>; user?: JwtPayload }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<{ headers: Record<string, string>; cookies?: Record<string, string>; user?: JwtPayload }>();
     const auth = request.headers['authorization'];
 
-    if (!auth?.startsWith('Bearer ')) {
+    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : request.cookies?.[AUTH_COOKIE];
+
+    if (!token) {
       throw new UnauthorizedException('Token de autenticación requerido.');
     }
 
-    const token = auth.slice(7);
     try {
       const payload = this.jwt.verify<JwtPayload & { type?: string }>(token);
       if (payload.type === 'reset') {

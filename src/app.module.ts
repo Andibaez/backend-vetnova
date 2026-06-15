@@ -19,6 +19,7 @@ import { FacturasModule } from './facturas/facturas.module';
 import { ClinicasModule } from './clinicas/clinicas.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
+import { CsrfGuard } from './auth/guards/csrf.guard';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: CsrfGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

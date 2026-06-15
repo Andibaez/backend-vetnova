@@ -8,6 +8,7 @@ import { MailModule } from '../mail/mail.module';
 import { NotificacionesModule } from '../notificaciones/notificaciones.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { CsrfGuard } from './guards/csrf.guard';
 
 @Module({
   imports: [
@@ -26,7 +27,7 @@ import { RolesGuard } from './guards/roles.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtAuthGuard, RolesGuard],
+  providers: [AuthService, JwtAuthGuard, RolesGuard, CsrfGuard],
   exports: [JwtModule, JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

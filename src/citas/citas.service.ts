@@ -26,13 +26,15 @@ const CITA_INCLUDE = {
     select: {
       id_veterinario: true,
       especialidad: true,
-      usuarios: { select: { nombre: true } },
+      usuarios: { select: { id_usuario: true, nombre: true } },
     },
   },
 } as const;
 
 type CitaConRelaciones = {
-  veterinarios?: { usuarios: { nombre: string | null } } | null;
+  veterinarios?: {
+    usuarios: { id_usuario: number; nombre: string | null };
+  } | null;
   [key: string]: unknown;
 };
 
@@ -40,6 +42,7 @@ function flattenVeterinario<T extends CitaConRelaciones>(cita: T) {
   return {
     ...cita,
     veterinario: cita.veterinarios?.usuarios?.nombre ?? null,
+    id_usuario_veterinario: cita.veterinarios?.usuarios?.id_usuario ?? null,
   };
 }
 
@@ -87,8 +90,14 @@ export class CitasService {
       );
     }
 
-    // Resolver id_veterinario: usar el ID directo o buscar por nombre como fallback
+    // Resolver id_veterinario: ID directo > id_usuario del vet > nombre como fallback
     let id_veterinario = dto.id_veterinario ?? null;
+    if (!id_veterinario && dto.id_usuario_veterinario) {
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario: dto.id_usuario_veterinario },
+      });
+      if (vet) id_veterinario = vet.id_veterinario;
+    }
     if (!id_veterinario && dto.veterinario) {
       const vet = await this.prisma.veterinarios.findFirst({
         where: {
@@ -294,18 +303,30 @@ export class CitasService {
       user.role === ROLES.VETERINARIO
         ? { estado: dto.estado, notas: dto.notas, servicio: dto.servicio }
         : (() => {
-            const { veterinario, ...rest } = dto;
+            const { veterinario, id_usuario_veterinario, ...rest } = dto;
             const d: Record<string, unknown> = { ...rest };
 
-            // Resolver id_veterinario por nombre si no viene el ID
-            if (rest.id_veterinario === undefined && veterinario) {
-              // Resolución asíncrona manejada abajo
-              d._resolveVet = veterinario;
+            // Resolver id_veterinario: preferir id_usuario_veterinario, luego nombre
+            if (rest.id_veterinario === undefined) {
+              if (id_usuario_veterinario) {
+                d._resolveVetByUsuario = id_usuario_veterinario;
+              } else if (veterinario) {
+                d._resolveVet = veterinario;
+              }
             }
             return d;
           })();
 
-    // Resolver nombre de veterinario para Admin
+    // Resolver vet por id_usuario (más confiable)
+    if (data._resolveVetByUsuario) {
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario: data._resolveVetByUsuario as number },
+      });
+      data.id_veterinario = vet?.id_veterinario ?? undefined;
+      delete data._resolveVetByUsuario;
+    }
+
+    // Resolver vet por nombre como fallback
     if (data._resolveVet) {
       const clinicaId = this.requireClinicaId(user);
       const vet = await this.prisma.veterinarios.findFirst({

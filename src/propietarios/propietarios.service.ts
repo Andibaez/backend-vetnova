@@ -124,15 +124,7 @@ export class PropietariosService {
       throw new NotFoundException('Propietario no existe');
     }
 
-    await this.prisma.$transaction([
-      // Facturas se desvinculan (registros financieros se conservan)
-      this.prisma.facturas.updateMany({
-        where: { id_propietario: id },
-        data: { id_propietario: null },
-      }),
-      // mascotas.id_propietario es nullable sin onDelete explícito → SetNull automático en BD
-      this.prisma.propietarios.delete({ where: { id_propietario: id } }),
-    ]);
+    await this.prisma.propietarios.delete({ where: { id_propietario: id } });
 
     return { message: 'Propietario eliminado.' };
   }

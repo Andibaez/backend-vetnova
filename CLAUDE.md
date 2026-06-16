@@ -38,12 +38,12 @@ C:\Users\ad\
 
 | Rol (backend) | Rol (frontend) | Acceso |
 |---|---|---|
-| `Administrador` | `Administrador` | Panel `/admin` — gestión total |
-| `Veterinario` | `Veterinario` | Panel `/veterinario` — citas y pacientes asignados |
+| `SuperAdministrador` | `SuperAdministrador` | Panel `/super-admin` — gestión de clínicas (sin `id_clinica`, ve todo) |
+| `Administrador` | `Administrador` | Panel `/admin` — gestión total de su clínica |
+| `Veterinario` | `Veterinario` | Panel `/veterinario` — citas y pacientes de su clínica |
 | `Cliente` | `Cliente` | Panel `/cliente` — sus mascotas y citas |
-| *(faltante)* | `SuperAdministrador` | Panel `/super-admin` — gestión de clínicas |
 
-> ⚠️ El rol `SuperAdministrador` y el módulo `/clinicas` existen en el frontend pero **no están implementados en el backend aún**.
+> El sistema es **multi-tenant**: cada usuario (excepto `SuperAdministrador`) pertenece a una `clinica` (`id_clinica`) y solo ve datos de esa clínica. El registro público requiere un slug de clínica (`/register?clinica=<slug>`).
 
 ---
 
@@ -102,11 +102,13 @@ npm run lint           # ESLint
 
 ## Usuarios de prueba (seed)
 
-| Email | Password | Rol |
-|---|---|---|
-| `admin@vetnova.com` | `Admin123!` | Administrador |
-| `vet@vetnova.com` | `Vet1234!` | Veterinario |
-| `recepcion@vetnova.com` | `Recep123!` | Recepcionista |
+| Email | Password | Rol | Clínica |
+|---|---|---|---|
+| `superadmin@vetnova.com` | `SuperAdmin123!` | SuperAdministrador | (ninguna) |
+| `admin@vetnova.com` | `Admin123!` | Administrador | `principal` |
+| `vet@vetnova.com` | `Vet1234!` | Veterinario | `principal` |
+
+> El rol `Recepcionista` (y el modelo `recepcionistas`) existían antes del refactor multi-tenancy y se **eliminaron deliberadamente** en `dev`. No hay usuario de prueba ni endpoints asociados.
 
 ---
 
@@ -114,7 +116,8 @@ npm run lint           # ESLint
 
 | Módulo | Endpoints base | Roles |
 |---|---|---|
-| `auth` | `/auth/register`, `/auth/login`, `/auth/google`, `/auth/me`, `/auth/forgot-password`, `/auth/reset-password` | Público / Autenticado |
+| `auth` | `/auth/register`, `/auth/login`, `/auth/google`, `/auth/me`, `/auth/csrf`, `/auth/logout`, `/auth/forgot-password`, `/auth/reset-password` | Público / Autenticado |
+| `clinicas` | `/clinicas/activas`, `/clinicas/by-slug/:slug` (público); `/clinicas` CRUD | SuperAdministrador (CRUD), público (activas/by-slug) |
 | `usuarios` | `/usuarios` | Admin (gestión), cualquier rol (update propio) |
 | `mascotas` | `/mascotas` | Admin + Vet (CRUD), Cliente (lectura propia) |
 | `propietarios` | `/propietarios` | Admin (total), Vet (sus pacientes), Cliente (propio) |
@@ -125,18 +128,24 @@ npm run lint           # ESLint
 | `notificaciones` | `/notificaciones` | Todos (cada uno ve las suyas) |
 | `historias-clinicas` | `/historias-clinicas/mascota/:id`, `/historias-clinicas/consultas` | Admin + Vet (write), Cliente (read propio) |
 | `recordatorios` | `/recordatorios` | Admin + Vet (CUD), Cliente (read) |
-| `facturas` | `/facturas` | Admin (total), Cliente (lectura propia) |
 
 ---
 
 ## Autenticación
 
-### Flujo JWT
-1. `POST /auth/login` → backend devuelve `{ token, user: { id, name, email, role } }`
-2. Frontend guarda el token en cookie `vetnova-token` (httpOnly, secure en prod)
-3. El proxy universal `app/api/backend/[...path]/route.ts` añade `Authorization: Bearer <token>` en cada request al backend
-4. `JwtAuthGuard` (global) verifica el token en cada endpoint no público
-5. `RolesGuard` (global) verifica el rol según el decorador `@Roles()` del endpoint
+### Flujo JWT (cookies httpOnly + CSRF)
+1. `POST /auth/login` / `/auth/register` / `/auth/google` → el backend setea dos cookies en su propia respuesta:
+   - `vetnova-token` (httpOnly, `SameSite=Lax`, `Secure` solo en prod, ~10 días) — el JWT de sesión
+   - `vetnova-csrf` (NO httpOnly, mismo resto de opciones) — token CSRF legible por JS
+   - El body de respuesta es `{ user, csrfToken }` (ya **no** incluye `token`)
+   - Si el email tiene cuentas en varias clínicas y no se manda `clinicaSlug`, responde `{ requiresClinicSelection: true, clinicas: [...] }` sin cookies
+2. `GET /auth/me` devuelve el usuario (incluye `clinicaId`/`clinicaNombre`) — requiere cookie `vetnova-token`
+3. `JwtAuthGuard` (global) lee el JWT **solo** de la cookie `vetnova-token`; **ya no acepta `Authorization: Bearer`**
+4. `CsrfGuard` (global) exige, para métodos no seguros (POST/PUT/PATCH/DELETE) en endpoints no `@Public()`, que el header `x-csrf-token` coincida con la cookie `vetnova-csrf`
+5. `RolesGuard` (global) verifica el rol según el decorador `@Roles()`; el `SuperAdministrador` no tiene `id_clinica` y ve datos de todas las clínicas (`tenant.util.ts`)
+6. `POST /auth/logout` limpia ambas cookies; `GET /auth/csrf` (público) emite una `vetnova-csrf` nueva si falta
+
+> ⚠️ **El frontend (`feat/frontend-changes`) todavía implementa el contrato viejo** (esperaba `token` en el body, lo mandaba como `Authorization: Bearer` vía el proxy). Esto rompe el login (el usuario es regresado a `/login` tras `/auth/me` 401). Ver "Pendientes → Frontend".
 
 ### Reset de contraseña
 - El token de reset se firma con `JWT_SECRET + hash_contraseña_actual`
@@ -153,17 +162,15 @@ npm run lint           # ESLint
 ## Base de datos (schema Prisma)
 
 ### Modelos principales
-- `usuarios` — cuenta de acceso, vinculada a un rol
-- `roles` — Administrador, Veterinario, Recepcionista, Cliente
+- `clinicas` — tenant: nombre, slug, dirección, coordenadas (lat/long), estado
+- `usuarios` — cuenta de acceso, vinculada a un rol y (excepto SuperAdmin) a una clínica
+- `roles` — SuperAdministrador, Administrador, Veterinario, Cliente
 - `propietarios` — perfil de cliente (1:1 con usuario Cliente)
 - `veterinarios` — perfil de veterinario (1:1 con usuario Veterinario)
-- `recepcionistas` — perfil de recepcionista (1:1 con usuario)
 - `mascotas` — mascotas vinculadas a un propietario
 - `citas` — citas entre mascota, usuario y veterinario
 - `historias_clinicas` — historia clínica por mascota (1:1)
 - `consultas` — consultas dentro de una historia clínica
-- `facturas` — facturas vinculadas a propietario y mascota
-- `detalle_productos` / `detalle_servicios` — líneas de factura
 - `productos` — inventario de productos
 - `servicios` — catálogo de servicios
 - `recordatorios` — recordatorios vinculados a mascotas
@@ -180,7 +187,9 @@ npm run lint           # ESLint
 
 | Medida | Dónde |
 |---|---|
-| JWT httpOnly cookie | Frontend (`lib/server-auth.ts`) |
+| JWT en cookie httpOnly (`vetnova-token`) | Backend (`auth.controller.ts`, la setea el propio backend) |
+| CSRF de doble cookie (`vetnova-csrf` + header `x-csrf-token`) | Backend (`csrf.guard.ts`) |
+| Aislamiento multi-tenant por `id_clinica` | Backend (`tenant.util.ts`, todos los services) |
 | Rate limiting global (60 req/min) | Backend (`ThrottlerModule`) |
 | Rate limiting por endpoint | `@Throttle` en auth endpoints |
 | Helmet (headers de seguridad) | Backend (`main.ts`) |
@@ -188,7 +197,7 @@ npm run lint           # ESLint
 | ValidationPipe whitelist | Backend (rechaza campos no declarados en DTOs) |
 | Roles guard global | Backend (`RolesGuard`) |
 | Reset token con hash de contraseña | Backend (`auth.service.ts`) |
-| Reset token bloqueado como Bearer | Backend (`jwt-auth.guard.ts`) |
+| Reset token bloqueado como sesión | Backend (`jwt-auth.guard.ts`) |
 | Contraseña: 8 chars + mayúscula + número + especial | Backend (DTOs) |
 | Log injection prevention | Backend (`logging.middleware.ts`) |
 | CSP dinámico con nonce | Frontend (`middleware.ts`) |
@@ -203,34 +212,40 @@ npm run lint           # ESLint
 | `/admin/*` | Administrador |
 | `/veterinario/*` | Veterinario |
 | `/cliente/*` | Cliente |
-| `/super-admin/*` | SuperAdministrador *(backend pendiente)* |
+| `/super-admin/*` | SuperAdministrador |
 | `/login`, `/register`, `/forgot-password`, `/reset-password` | Público |
 
 ### Proxy universal
-`app/api/backend/[...path]/route.ts` — reenvía todas las peticiones al backend con el token JWT adjunto. Evita CORS y mantiene el token seguro en el servidor.
+`app/api/backend/[...path]/route.ts` — reenvía todas las peticiones al backend. **Pendiente**: el proxy y las rutas de auth (`login`/`register`/`google`/`logout`) todavía implementan el contrato viejo (`Authorization: Bearer` + cookie propia del frontend) y no reenvían `Cookie`/`x-csrf-token`, por lo que el login no persiste sesión contra el backend actual. Ver "Pendientes → Frontend".
 
 ---
 
 ## Pendientes conocidos
 
 ### Backend
-- [ ] Módulo `clinicas` (SuperAdministrador — CRUD + by-slug)
-- [ ] Rol `SuperAdministrador` en constantes y guards
-- [ ] Campo `clinicaId` en respuesta de `/auth/me`, `/auth/login`, `/auth/register`
-- [ ] GitHub Secrets (`DATABASE_URL`, `DIRECT_URL`) para que el CI corra
+- [ ] Verificar/aplicar en NeonDB la migración `20260612193000_harden_multitenancy` (correr `npx prisma migrate status` / `deploy` desde una red sin bloqueo al puerto 5432)
+- [ ] Configurar GitHub Secrets (`DATABASE_URL`, `DIRECT_URL`) para que el CI corra `prisma generate`/`build`
 
-### Frontend
-- [ ] Integrar endpoints nuevos: recordatorios, historias clínicas, facturas
+### Frontend (`feat/frontend-changes`) — **crítico, bloquea el login**
+- [ ] Adaptar al nuevo contrato de auth: cookies httpOnly (`vetnova-token`, `vetnova-csrf`) + header `x-csrf-token`, en vez de `Authorization: Bearer`
+  - `app/api/auth/login|register|google/route.ts`: reenviar `Set-Cookie` del backend con `getSetCookie()`
+  - `app/api/auth/logout/route.ts`: llamar a `POST /auth/logout` del backend y reenviar las cookies de limpieza
+  - `app/api/backend/[...path]/route.ts`: reenviar `Cookie` y `x-csrf-token` en cada request; eliminar `Authorization`/`getAuthToken`
+  - `app/api/cloudinary/upload/route.ts`: usar `Cookie` en vez de `Authorization: Bearer`
+  - Eliminar `lib/server-auth.ts` y su test (ya no se necesita cookie propia del frontend)
+  - Nuevo helper CSRF: leer `vetnova-csrf` de `document.cookie` y mandarlo como `x-csrf-token` en mutaciones
+- [ ] Implementar UI de `requiresClinicSelection` en `LoginForm.tsx` (selector de clínica cuando un email tiene cuentas en varias)
+- [ ] Integrar endpoints faltantes: `lib/api/historias-clinicas.ts`, `recordatorios.ts` + pantallas
 - [ ] Manejar `429 Too Many Requests` en reset-password
 - [ ] Formularios de registro/cambio de contraseña con requisitos de complejidad visibles
-- [ ] Panel `/super-admin` conectado al backend
+- [ ] (Cosmético) renombrar `lib/recepcionista/` — solo son tipos compartidos (`Appointment`, `PetRecord`, `Owner`), el rol ya no existe
 
 ---
 
 ## CI/CD
 
 ### Backend (`.github/workflows/ci.yml`)
-Corre en cada push/PR a `main`: install → prisma generate → lint → build → npm audit
+Corre en cada push/PR a `main` y `dev`: install (`postinstall` regenera el cliente Prisma automáticamente) → prisma generate → lint → build → npm audit. Los pasos de `prisma generate`/`build` requieren `DATABASE_URL`/`DIRECT_URL` como GitHub Secrets (pendiente de configurar).
 
 ### Frontend
 Ya tiene su propio workflow de CI.

@@ -46,17 +46,12 @@ export class AuthService {
 
     const clinica = await this.resolveClinicaBySlug(dto.clinicaSlug);
 
-    const existing = await this.prisma.usuarios.findUnique({
-      where: {
-        email_id_clinica: {
-          email: normalizedEmail,
-          id_clinica: clinica.id_clinica,
-        },
-      },
+    const existing = await this.prisma.usuarios.findFirst({
+      where: { email: normalizedEmail, id_clinica: clinica.id_clinica },
     });
     if (existing) {
       throw new ConflictException(
-        'Ya existe una cuenta con ese correo en esta clínica.',
+        'Ya existe una cuenta con ese correo en esta clínica. Inicia sesión directamente o usa "¿Olvidaste tu contraseña?" si accediste con Google.',
       );
     }
 
@@ -246,15 +241,10 @@ export class AuthService {
         }
       } else {
         const clinica = await this.resolveClinicaBySlug(dto.clinicaSlug);
-        const rol = await this.findOrCreateRole(ROLES.CLIENTE);
-        user = await this.prisma.usuarios.create({
-          data: {
-            nombre: (payload.name ?? normalizedEmail).trim(),
-            email: normalizedEmail,
-            password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
-            id_rol: rol.id_rol,
-            id_clinica: clinica.id_clinica,
-          },
+
+        // Si ya existe una cuenta con ese correo en esta clínica (cualquier rol / método de auth), usarla en lugar de duplicar
+        const existingInClinic = await this.prisma.usuarios.findFirst({
+          where: { email: normalizedEmail, id_clinica: clinica.id_clinica },
           include: {
             roles: true,
             clinicas: {
@@ -267,13 +257,39 @@ export class AuthService {
             },
           },
         });
-        await this.createRoleProfile(
-          user.id_usuario,
-          user.nombre,
-          normalizedEmail,
-          ROLES.CLIENTE,
-          clinica.id_clinica,
-        );
+
+        if (existingInClinic) {
+          user = existingInClinic;
+        } else {
+          const rol = await this.findOrCreateRole(ROLES.CLIENTE);
+          user = await this.prisma.usuarios.create({
+            data: {
+              nombre: (payload.name ?? normalizedEmail).trim(),
+              email: normalizedEmail,
+              password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
+              id_rol: rol.id_rol,
+              id_clinica: clinica.id_clinica,
+            },
+            include: {
+              roles: true,
+              clinicas: {
+                select: {
+                  id_clinica: true,
+                  nombre: true,
+                  slug: true,
+                  estado: true,
+                },
+              },
+            },
+          });
+          await this.createRoleProfile(
+            user.id_usuario,
+            user.nombre,
+            normalizedEmail,
+            ROLES.CLIENTE,
+            clinica.id_clinica,
+          );
+        }
       }
     }
 

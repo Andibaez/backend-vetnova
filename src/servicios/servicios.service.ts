@@ -54,10 +54,7 @@ export class ServiciosService {
 
   async remove(id: number, user: JwtPayload) {
     await this.findOne(id, user);
-    await this.prisma.$transaction([
-      this.prisma.detalle_servicios.deleteMany({ where: { id_servicio: id } }),
-      this.prisma.servicios.delete({ where: { id_servicio: id } }),
-    ]);
+    await this.prisma.servicios.delete({ where: { id_servicio: id } });
     return { message: 'Servicio eliminado.' };
   }
 

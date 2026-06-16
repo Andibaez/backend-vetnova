@@ -20,7 +20,6 @@ model clinicas {
   estado       String         @default("activa") @db.VarChar(20)
   created_at   DateTime       @default(now()) @db.Timestamp(6)
   citas        citas[]
-  facturas     facturas[]
   mascotas     mascotas[]
   productos    productos[]
   propietarios propietarios[]
@@ -57,40 +56,6 @@ model consultas {
   usuarios           usuarios?           @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model detalle_productos {
-  id_detalle      Int        @id @default(autoincrement())
-  id_factura      Int?
-  id_producto     Int?
-  cantidad        Int?
-  precio_unitario Decimal?   @db.Decimal(10, 2)
-  facturas        facturas?  @relation(fields: [id_factura], references: [id_factura], onDelete: NoAction, onUpdate: NoAction)
-  productos       productos? @relation(fields: [id_producto], references: [id_producto], onDelete: NoAction, onUpdate: NoAction)
-}
-
-model detalle_servicios {
-  id_detalle      Int        @id @default(autoincrement())
-  id_factura      Int?
-  id_servicio     Int?
-  cantidad        Int?
-  precio_unitario Decimal?   @db.Decimal(10, 2)
-  facturas        facturas?  @relation(fields: [id_factura], references: [id_factura], onDelete: NoAction, onUpdate: NoAction)
-  servicios       servicios? @relation(fields: [id_servicio], references: [id_servicio], onDelete: NoAction, onUpdate: NoAction)
-}
-
-model facturas {
-  id_factura        Int                 @id @default(autoincrement())
-  fecha             DateTime?           @default(now()) @db.Timestamp(6)
-  total             Decimal?            @db.Decimal(10, 2)
-  id_propietario    Int?
-  id_mascota        Int?
-  id_clinica        Int
-  detalle_productos detalle_productos[]
-  detalle_servicios detalle_servicios[]
-  clinicas          clinicas            @relation(fields: [id_clinica], references: [id_clinica])
-  mascotas          mascotas?           @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
-  propietarios      propietarios?       @relation(fields: [id_propietario], references: [id_propietario], onDelete: NoAction, onUpdate: NoAction)
-}
-
 model historias_clinicas {
   id_historia    Int         @id @default(autoincrement())
   id_mascota     Int?        @unique
@@ -112,7 +77,6 @@ model mascotas {
   sexo               String?             @db.VarChar(20)
   id_clinica         Int
   citas              citas[]
-  facturas           facturas[]
   historias_clinicas historias_clinicas?
   clinicas           clinicas            @relation(fields: [id_clinica], references: [id_clinica])
   propietario        propietarios?       @relation(fields: [id_propietario], references: [id_propietario])
@@ -127,7 +91,6 @@ model productos {
   precio                 Decimal?                 @db.Decimal(10, 2)
   stock                  Int?
   id_clinica             Int
-  detalle_productos      detalle_productos[]
   movimientos_inventario movimientos_inventario[]
   clinicas               clinicas                 @relation(fields: [id_clinica], references: [id_clinica])
 }
@@ -142,7 +105,6 @@ model propietarios {
   estado         String?    @default("activo") @db.VarChar(20)
   id_usuario     Int?       @unique
   id_clinica     Int
-  facturas       facturas[]
   mascotas       mascotas[]
   clinicas       clinicas   @relation(fields: [id_clinica], references: [id_clinica])
   usuarios       usuarios?  @relation(fields: [id_usuario], references: [id_usuario])
@@ -179,12 +141,11 @@ model roles {
 }
 
 model servicios {
-  id_servicio       Int                 @id @default(autoincrement())
-  nombre            String?             @db.VarChar(100)
-  precio            Decimal?            @db.Decimal(10, 2)
-  id_clinica        Int
-  detalle_servicios detalle_servicios[]
-  clinicas          clinicas            @relation(fields: [id_clinica], references: [id_clinica])
+  id_servicio Int      @id @default(autoincrement())
+  nombre      String?  @db.VarChar(100)
+  precio      Decimal? @db.Decimal(10, 2)
+  id_clinica  Int
+  clinicas    clinicas @relation(fields: [id_clinica], references: [id_clinica])
 }
 
 model usuarios {

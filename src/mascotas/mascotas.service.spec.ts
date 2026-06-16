@@ -23,7 +23,6 @@ const mockPrisma = {
   historias_clinicas: { deleteMany: jest.fn() },
   recordatorios: { deleteMany: jest.fn() },
   registro_vacunas: { deleteMany: jest.fn() },
-  facturas: { updateMany: jest.fn() },
   citas: { updateMany: jest.fn() },
   $transaction: jest.fn(),
 };
@@ -241,7 +240,6 @@ describe('MascotasService', () => {
       mockPrisma.historias_clinicas.deleteMany.mockResolvedValue({ count: 1 });
       mockPrisma.recordatorios.deleteMany.mockResolvedValue({ count: 1 });
       mockPrisma.registro_vacunas.deleteMany.mockResolvedValue({ count: 1 });
-      mockPrisma.facturas.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.citas.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.mascotas.delete.mockResolvedValue({});
 

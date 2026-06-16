@@ -12,7 +12,6 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
-  detalle_servicios: { deleteMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -89,22 +88,15 @@ describe('ServiciosService', () => {
     });
   });
 
-  it('elimina detalles antes de eliminar el servicio', async () => {
+  it('elimina el servicio correctamente', async () => {
     mockPrisma.servicios.findUnique.mockResolvedValue({
       id_servicio: 1,
       id_clinica: 1,
     });
-    mockPrisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => {
-      return Promise.all(ops);
-    });
-    mockPrisma.detalle_servicios.deleteMany.mockResolvedValue({ count: 1 });
     mockPrisma.servicios.delete.mockResolvedValue({});
 
     await service.remove(1, adminUser);
 
-    expect(mockPrisma.detalle_servicios.deleteMany).toHaveBeenCalledWith({
-      where: { id_servicio: 1 },
-    });
     expect(mockPrisma.servicios.delete).toHaveBeenCalledWith({
       where: { id_servicio: 1 },
     });

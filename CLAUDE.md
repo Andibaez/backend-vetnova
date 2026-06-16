@@ -128,7 +128,6 @@ npm run lint           # ESLint
 | `notificaciones` | `/notificaciones` | Todos (cada uno ve las suyas) |
 | `historias-clinicas` | `/historias-clinicas/mascota/:id`, `/historias-clinicas/consultas` | Admin + Vet (write), Cliente (read propio) |
 | `recordatorios` | `/recordatorios` | Admin + Vet (CUD), Cliente (read) |
-| `facturas` | `/facturas` | Admin (total), Cliente (lectura propia) |
 
 ---
 
@@ -172,8 +171,6 @@ npm run lint           # ESLint
 - `citas` — citas entre mascota, usuario y veterinario
 - `historias_clinicas` — historia clínica por mascota (1:1)
 - `consultas` — consultas dentro de una historia clínica
-- `facturas` — facturas vinculadas a propietario y mascota
-- `detalle_productos` / `detalle_servicios` — líneas de factura
 - `productos` — inventario de productos
 - `servicios` — catálogo de servicios
 - `recordatorios` — recordatorios vinculados a mascotas
@@ -238,7 +235,7 @@ npm run lint           # ESLint
   - Eliminar `lib/server-auth.ts` y su test (ya no se necesita cookie propia del frontend)
   - Nuevo helper CSRF: leer `vetnova-csrf` de `document.cookie` y mandarlo como `x-csrf-token` en mutaciones
 - [ ] Implementar UI de `requiresClinicSelection` en `LoginForm.tsx` (selector de clínica cuando un email tiene cuentas en varias)
-- [ ] Integrar endpoints faltantes: `lib/api/facturas.ts`, `historias-clinicas.ts`, `recordatorios.ts` + pantallas
+- [ ] Integrar endpoints faltantes: `lib/api/historias-clinicas.ts`, `recordatorios.ts` + pantallas
 - [ ] Manejar `429 Too Many Requests` en reset-password
 - [ ] Formularios de registro/cambio de contraseña con requisitos de complejidad visibles
 - [ ] (Cosmético) renombrar `lib/recepcionista/` — solo son tipos compartidos (`Appointment`, `PetRecord`, `Owner`), el rol ya no existe

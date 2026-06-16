@@ -14,7 +14,6 @@ const mockPrisma = {
     delete: jest.fn(),
   },
   veterinarios: { findUnique: jest.fn() },
-  facturas: { updateMany: jest.fn() },
   $transaction: jest.fn(),
 };
 
@@ -167,22 +166,18 @@ describe('PropietariosService', () => {
       );
     });
 
-    it('desvincula facturas antes de eliminar', async () => {
+    it('elimina el propietario correctamente', async () => {
       mockPrisma.propietarios.findUnique.mockResolvedValue({
         id_propietario: 1,
         id_clinica: 1,
       });
-      mockPrisma.$transaction.mockImplementation(async (ops: any[]) => {
-        for (const op of ops) await op;
-      });
-      mockPrisma.facturas.updateMany.mockResolvedValue({ count: 2 });
       mockPrisma.propietarios.delete.mockResolvedValue({});
 
       await service.deletePropietario(1, adminUser);
 
-      expect(mockPrisma.facturas.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id_propietario: 1 } }),
-      );
+      expect(mockPrisma.propietarios.delete).toHaveBeenCalledWith({
+        where: { id_propietario: 1 },
+      });
     });
   });
 });

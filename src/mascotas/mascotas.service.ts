@@ -208,11 +208,6 @@ export class MascotasService {
       this.prisma.historias_clinicas.deleteMany({ where: { id_mascota: id } }),
       this.prisma.recordatorios.deleteMany({ where: { id_mascota: id } }),
       this.prisma.registro_vacunas.deleteMany({ where: { id_mascota: id } }),
-      // Facturas y citas se desvinculan (registros históricos se conservan)
-      this.prisma.facturas.updateMany({
-        where: { id_mascota: id },
-        data: { id_mascota: null },
-      }),
       this.prisma.citas.updateMany({
         where: { id_mascota: id },
         data: { id_mascota: null },

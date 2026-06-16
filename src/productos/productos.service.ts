@@ -73,7 +73,6 @@ export class ProductosService {
       throw new NotFoundException('Producto no encontrado');
     }
     await this.prisma.$transaction([
-      this.prisma.detalle_productos.deleteMany({ where: { id_producto: id } }),
       this.prisma.movimientos_inventario.deleteMany({
         where: { id_producto: id },
       }),

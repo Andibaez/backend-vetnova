@@ -93,10 +93,12 @@ export class CitasService {
     // Resolver id_veterinario: ID directo > id_usuario del vet > nombre como fallback
     let id_veterinario = dto.id_veterinario ?? null;
     if (!id_veterinario && dto.id_usuario_veterinario) {
-      const vet = await this.prisma.veterinarios.findUnique({
+      const vet = await this.prisma.veterinarios.upsert({
         where: { id_usuario: dto.id_usuario_veterinario },
+        create: { id_usuario: dto.id_usuario_veterinario },
+        update: {},
       });
-      if (vet) id_veterinario = vet.id_veterinario;
+      id_veterinario = vet.id_veterinario;
     }
     if (!id_veterinario && dto.veterinario) {
       const vet = await this.prisma.veterinarios.findFirst({
@@ -319,10 +321,12 @@ export class CitasService {
 
     // Resolver vet por id_usuario (más confiable)
     if (data._resolveVetByUsuario) {
-      const vet = await this.prisma.veterinarios.findUnique({
+      const vet = await this.prisma.veterinarios.upsert({
         where: { id_usuario: data._resolveVetByUsuario as number },
+        create: { id_usuario: data._resolveVetByUsuario as number },
+        update: {},
       });
-      data.id_veterinario = vet?.id_veterinario ?? undefined;
+      data.id_veterinario = vet.id_veterinario;
       delete data._resolveVetByUsuario;
     }
 

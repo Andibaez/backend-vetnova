@@ -8,8 +8,10 @@ export class LoggingMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const incoming = req.headers['x-request-id'] as string;
-    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const requestId = incoming && UUID_REGEX.test(incoming) ? incoming : randomUUID();
+    const UUID_REGEX =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const requestId =
+      incoming && UUID_REGEX.test(incoming) ? incoming : randomUUID();
     req['requestId'] = requestId;
     res.setHeader('x-request-id', requestId);
 
@@ -19,8 +21,11 @@ export class LoggingMiddleware implements NestMiddleware {
     res.on('finish', () => {
       const ms = Date.now() - start;
       const { statusCode } = res;
-      const level = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'log';
-      this.logger[level](`[${requestId}] ${method} ${originalUrl} ${statusCode} +${ms}ms`);
+      const level =
+        statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'log';
+      this.logger[level](
+        `[${requestId}] ${method} ${originalUrl} ${statusCode} +${ms}ms`,
+      );
     });
 
     next();

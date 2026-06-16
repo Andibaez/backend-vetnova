@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { UpdateConsultaDto } from './dto/update-consulta.dto';
@@ -10,15 +14,11 @@ export class HistoriasClinicasService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findByMascota(id_mascota: number, user: JwtPayload) {
-    const mascota = await this.prisma.mascotas.findUnique({ where: { id_mascota } });
+    const mascota = await this.prisma.mascotas.findUnique({
+      where: { id_mascota },
+    });
     if (!mascota) throw new NotFoundException('Mascota no encontrada.');
-
-    if (user.role === ROLES.CLIENTE) {
-      const prop = await this.prisma.propietarios.findUnique({ where: { id_usuario: user.sub } });
-      if (!prop || mascota.id_propietario !== prop.id_propietario) {
-        throw new ForbiddenException('No tienes permiso para ver esta historia clínica.');
-      }
-    }
+    await this.assertMascotaAccess(mascota, user);
 
     const historia = await this.prisma.historias_clinicas.findUnique({
       where: { id_mascota },
@@ -34,8 +34,11 @@ export class HistoriasClinicasService {
   }
 
   async createConsulta(dto: CreateConsultaDto, user: JwtPayload) {
-    const mascota = await this.prisma.mascotas.findUnique({ where: { id_mascota: dto.id_mascota } });
+    const mascota = await this.prisma.mascotas.findUnique({
+      where: { id_mascota: dto.id_mascota },
+    });
     if (!mascota) throw new NotFoundException('Mascota no encontrada.');
+    await this.assertMascotaAccess(mascota, user);
 
     // Obtener o crear la historia clínica de la mascota
     let historia = await this.prisma.historias_clinicas.findUnique({
@@ -60,11 +63,20 @@ export class HistoriasClinicasService {
   }
 
   async updateConsulta(id: number, dto: UpdateConsultaDto, user: JwtPayload) {
-    const consulta = await this.prisma.consultas.findUnique({ where: { id_consulta: id } });
+    const consulta = await this.prisma.consultas.findUnique({
+      where: { id_consulta: id },
+      include: { historias_clinicas: { include: { mascotas: true } } },
+    });
     if (!consulta) throw new NotFoundException('Consulta no encontrada.');
 
+    const mascota = consulta.historias_clinicas?.mascotas;
+    if (!mascota) throw new NotFoundException('Mascota no encontrada.');
+    await this.assertMascotaAccess(mascota, user);
+
     if (user.role === ROLES.VETERINARIO && consulta.id_usuario !== user.sub) {
-      throw new ForbiddenException('Solo puedes editar consultas que tú registraste.');
+      throw new ForbiddenException(
+        'Solo puedes editar consultas que tú registraste.',
+      );
     }
 
     return this.prisma.consultas.update({
@@ -79,14 +91,84 @@ export class HistoriasClinicasService {
   }
 
   async removeConsulta(id: number, user: JwtPayload) {
-    const consulta = await this.prisma.consultas.findUnique({ where: { id_consulta: id } });
+    const consulta = await this.prisma.consultas.findUnique({
+      where: { id_consulta: id },
+      include: { historias_clinicas: { include: { mascotas: true } } },
+    });
     if (!consulta) throw new NotFoundException('Consulta no encontrada.');
 
+    const mascota = consulta.historias_clinicas?.mascotas;
+    if (!mascota) throw new NotFoundException('Mascota no encontrada.');
+    await this.assertMascotaAccess(mascota, user);
+
     if (user.role === ROLES.VETERINARIO && consulta.id_usuario !== user.sub) {
-      throw new ForbiddenException('Solo puedes eliminar consultas que tú registraste.');
+      throw new ForbiddenException(
+        'Solo puedes eliminar consultas que tú registraste.',
+      );
     }
 
     await this.prisma.consultas.delete({ where: { id_consulta: id } });
     return { message: 'Consulta eliminada.' };
+  }
+
+  private requireClinicaId(user?: JwtPayload) {
+    if (!user?.clinicaId) {
+      throw new ForbiddenException('El usuario no tiene una clínica asociada.');
+    }
+    return user.clinicaId;
+  }
+
+  private async assertMascotaAccess(
+    mascota: {
+      id_mascota: number;
+      id_propietario: number | null;
+      id_clinica: number | null;
+    },
+    user: JwtPayload,
+  ) {
+    const clinicaId = this.requireClinicaId(user);
+    if (mascota.id_clinica !== clinicaId) {
+      throw new ForbiddenException(
+        'No tienes permiso para acceder a esta historia clínica.',
+      );
+    }
+
+    if (user.role === ROLES.CLIENTE) {
+      const prop = await this.prisma.propietarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
+      if (
+        !prop ||
+        prop.id_clinica !== clinicaId ||
+        mascota.id_propietario !== prop.id_propietario
+      ) {
+        throw new ForbiddenException(
+          'No tienes permiso para acceder a esta historia clínica.',
+        );
+      }
+      return;
+    }
+
+    if (user.role === ROLES.VETERINARIO) {
+      const vet = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario: user.sub },
+      });
+      if (!vet)
+        throw new ForbiddenException('No tienes un perfil de veterinario.');
+
+      const asignada = await this.prisma.citas.findFirst({
+        where: {
+          id_mascota: mascota.id_mascota,
+          id_veterinario: vet.id_veterinario,
+          id_clinica: clinicaId,
+        },
+        select: { id_cita: true },
+      });
+      if (!asignada) {
+        throw new ForbiddenException(
+          'Solo puedes acceder a pacientes asignados a ti.',
+        );
+      }
+    }
   }
 }

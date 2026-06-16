@@ -1,5 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { ProductosService } from './productos.service';
 import { CreateProductoDto } from './dto/create-producto.dto';
 import { UpdateProductoDto } from './dto/update-producto.dto';
@@ -8,7 +17,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
-@ApiBearerAuth()
+@ApiCookieAuth('vetnova-token')
 @ApiTags('productos')
 @Controller('productos')
 export class ProductosController {
@@ -22,7 +31,10 @@ export class ProductosController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.productosService.findOne(id, user);
   }
 
@@ -34,13 +46,20 @@ export class ProductosController {
 
   @Roles(ROLES.ADMIN)
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateProductoDto, @CurrentUser() user: JwtPayload) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateProductoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.productosService.update(id, dto, user);
   }
 
   @Roles(ROLES.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.productosService.remove(id, user);
   }
 }

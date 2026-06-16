@@ -8,7 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { JwtPayload } from '../../common/types/jwt-payload.type';
-import { AUTH_COOKIE } from '../auth-cookies.util';
+import { AUTH_COOKIE_NAME } from '../constants/auth-cookies.constant';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -24,12 +24,14 @@ export class JwtAuthGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const request = context
-      .switchToHttp()
-      .getRequest<{ headers: Record<string, string>; cookies?: Record<string, string>; user?: JwtPayload }>();
-    const auth = request.headers['authorization'];
-
-    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : request.cookies?.[AUTH_COOKIE];
+    const request = context.switchToHttp().getRequest<{
+      headers: Record<string, string | undefined>;
+      user?: JwtPayload;
+    }>();
+    const token = this.extractCookie(
+      request.headers.cookie ?? '',
+      AUTH_COOKIE_NAME,
+    );
 
     if (!token) {
       throw new UnauthorizedException('Token de autenticación requerido.');
@@ -45,5 +47,16 @@ export class JwtAuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Token inválido o expirado.');
     }
+  }
+
+  private extractCookie(cookieHeader: string, name: string): string | null {
+    const cookies = cookieHeader.split(';').map((cookie) => cookie.trim());
+    for (const cookie of cookies) {
+      const [key, ...valueParts] = cookie.split('=');
+      if (key === name) {
+        return decodeURIComponent(valueParts.join('='));
+      }
+    }
+    return null;
   }
 }

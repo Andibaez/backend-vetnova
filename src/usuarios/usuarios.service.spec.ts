@@ -18,7 +18,6 @@ const mockPrisma = {
     findUnique: jest.fn(),
     create: jest.fn(),
   },
-  recepcionistas: { deleteMany: jest.fn() },
   veterinarios: { findUnique: jest.fn(), deleteMany: jest.fn() },
   citas: { updateMany: jest.fn() },
   consultas: { updateMany: jest.fn() },
@@ -30,9 +29,38 @@ const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
 };
 
-const adminUser = { sub: 1, role: ROLES.ADMIN, name: 'Admin', email: 'admin@test.com', clinicaId: null };
-const clienteUser = { sub: 2, role: ROLES.CLIENTE, name: 'Cliente', email: 'cliente@test.com', clinicaId: null };
-const vetUser = { sub: 3, role: ROLES.VETERINARIO, name: 'Vet', email: 'vet@test.com', clinicaId: null };
+const adminUser = {
+  sub: 1,
+  role: ROLES.ADMIN,
+  name: 'Admin',
+  email: 'admin@test.com',
+  clinicaId: 1,
+};
+const clienteUser = {
+  sub: 2,
+  role: ROLES.CLIENTE,
+  name: 'Cliente',
+  email: 'cliente@test.com',
+  clinicaId: 1,
+};
+const vetUser = {
+  sub: 3,
+  role: ROLES.VETERINARIO,
+  name: 'Vet',
+  email: 'vet@test.com',
+  clinicaId: 1,
+};
+
+type RemoveUsuarioTx = {
+  veterinarios: {
+    findUnique: jest.Mock<Promise<null>, [unknown]>;
+    deleteMany: jest.Mock;
+  };
+  citas: { updateMany: jest.Mock };
+  consultas: { updateMany: jest.Mock };
+  propietarios: { updateMany: jest.Mock };
+  usuarios: { delete: jest.Mock };
+};
 
 describe('UsuariosService', () => {
   let service: UsuariosService;
@@ -53,29 +81,46 @@ describe('UsuariosService', () => {
   // ── update ───────────────────────────────────────────────────
 
   describe('update', () => {
-    const existingUser = { id_usuario: 2, email: 'a@b.com', password: 'hashed', nombre: 'Test', id_clinica: null };
+    const existingUser = {
+      id_usuario: 2,
+      email: 'a@b.com',
+      password: 'hashed',
+      nombre: 'Test',
+      id_clinica: 1,
+    };
 
     it('lanza NotFoundException si el usuario no existe', async () => {
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
-      await expect(service.update(99, { nombre: 'Nuevo' }, adminUser)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.update(99, { nombre: 'Nuevo' }, adminUser),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('cliente no puede modificar el perfil de otro usuario', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({ ...existingUser, id_usuario: 99 });
+      mockPrisma.usuarios.findUnique.mockResolvedValue({
+        ...existingUser,
+        id_usuario: 99,
+      });
       await expect(
         service.update(99, { nombre: 'Hack' }, clienteUser),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('cliente no puede cambiar su propio rol', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({ ...existingUser, id_usuario: 2 });
+      mockPrisma.usuarios.findUnique.mockResolvedValue({
+        ...existingUser,
+        id_usuario: 2,
+      });
       await expect(
         service.update(2, { rol: ROLES.ADMIN }, clienteUser),
       ).rejects.toThrow(ForbiddenException);
     });
 
     it('veterinario no puede cambiar su propio rol', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({ ...existingUser, id_usuario: 3 });
+      mockPrisma.usuarios.findUnique.mockResolvedValue({
+        ...existingUser,
+        id_usuario: 3,
+      });
       await expect(
         service.update(3, { rol: ROLES.ADMIN }, vetUser),
       ).rejects.toThrow(ForbiddenException);
@@ -83,9 +128,13 @@ describe('UsuariosService', () => {
 
     it('admin puede cambiar el rol de cualquier usuario', async () => {
       mockPrisma.usuarios.findUnique.mockResolvedValue(existingUser);
-      mockPrisma.roles.findUnique.mockResolvedValue({ id_rol: 1, nombre: ROLES.ADMIN });
+      mockPrisma.roles.findUnique.mockResolvedValue({
+        id_rol: 1,
+        nombre: ROLES.ADMIN,
+      });
       mockPrisma.usuarios.update.mockResolvedValue({
-        ...existingUser, roles: { nombre: ROLES.ADMIN },
+        ...existingUser,
+        roles: { nombre: ROLES.ADMIN },
       });
 
       await service.update(2, { rol: ROLES.ADMIN }, adminUser);
@@ -99,24 +148,37 @@ describe('UsuariosService', () => {
   describe('remove', () => {
     it('lanza NotFoundException si el usuario no existe', async () => {
       mockPrisma.usuarios.findUnique.mockResolvedValue(null);
-      await expect(service.remove(99, adminUser)).rejects.toThrow(NotFoundException);
+      await expect(service.remove(99, adminUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('ejecuta transacción con desvinculación de registros relacionados', async () => {
-      mockPrisma.usuarios.findUnique.mockResolvedValue({ id_usuario: 1, id_clinica: null });
-      mockPrisma.$transaction.mockImplementation(async (fn: any) => {
-        const tx = {
-          veterinarios: { findUnique: jest.fn().mockResolvedValue(null), deleteMany: jest.fn() },
-          recepcionistas: { deleteMany: jest.fn() },
-          citas: { updateMany: jest.fn() },
-          consultas: { updateMany: jest.fn() },
-          propietarios: { updateMany: jest.fn() },
-          usuarios: { delete: jest.fn() },
-        };
-        await fn(tx);
-        expect(tx.citas.updateMany).toHaveBeenCalled();
-        expect(tx.usuarios.delete).toHaveBeenCalledWith({ where: { id_usuario: 1 } });
+      mockPrisma.usuarios.findUnique.mockResolvedValue({
+        id_usuario: 1,
+        id_clinica: 1,
       });
+      mockPrisma.$transaction.mockImplementation(
+        async (fn: (tx: RemoveUsuarioTx) => Promise<unknown>) => {
+          const tx: RemoveUsuarioTx = {
+            veterinarios: {
+              findUnique: jest
+                .fn<Promise<null>, [unknown]>()
+                .mockResolvedValue(null),
+              deleteMany: jest.fn(),
+            },
+            citas: { updateMany: jest.fn() },
+            consultas: { updateMany: jest.fn() },
+            propietarios: { updateMany: jest.fn() },
+            usuarios: { delete: jest.fn() },
+          };
+          await fn(tx);
+          expect(tx.citas.updateMany).toHaveBeenCalled();
+          expect(tx.usuarios.delete).toHaveBeenCalledWith({
+            where: { id_usuario: 1 },
+          });
+        },
+      );
 
       await service.remove(1, adminUser);
       expect(mockPrisma.$transaction).toHaveBeenCalled();

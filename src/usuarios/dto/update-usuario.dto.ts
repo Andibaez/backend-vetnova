@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from 'class-validator';
 import { ROLES_ARRAY } from '../../common/constants/roles.constant';
 
 export class UpdateUsuarioDto {
@@ -13,8 +20,9 @@ export class UpdateUsuarioDto {
   @IsOptional()
   @IsString()
   @MinLength(8, { message: 'La contraseña debe tener al menos 8 caracteres.' })
-  @Matches(/(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/, {
-    message: 'La contraseña debe tener al menos una mayúscula, un número y un carácter especial.',
+  @Matches(/(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?])/, {
+    message:
+      'La contraseña debe tener al menos una mayúscula, un número y un carácter especial.',
   })
   password?: string;
 
@@ -23,6 +31,8 @@ export class UpdateUsuarioDto {
   currentPassword?: string;
 
   @IsOptional()
-  @IsEnum(ROLES_ARRAY, { message: `rol debe ser uno de: ${ROLES_ARRAY.join(', ')}` })
+  @IsEnum(ROLES_ARRAY, {
+    message: `rol debe ser uno de: ${ROLES_ARRAY.join(', ')}`,
+  })
   rol?: string;
 }

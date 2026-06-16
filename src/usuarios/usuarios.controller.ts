@@ -1,5 +1,15 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { UsuariosService } from './usuarios.service';
 import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
@@ -9,7 +19,7 @@ import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { FindUsuariosDto } from './dto/find-usuarios.dto';
 
-@ApiBearerAuth()
+@ApiCookieAuth('vetnova-token')
 @ApiTags('usuarios')
 @Roles(ROLES.ADMIN)
 @Controller('usuarios')
@@ -19,11 +29,17 @@ export class UsuariosController {
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get()
   findAll(@Query() query: FindUsuariosDto, @CurrentUser() user: JwtPayload) {
-    return this.usuariosService.findAll(user, query.rol, { page: query.page, limit: query.limit });
+    return this.usuariosService.findAll(user, query.rol, {
+      page: query.page,
+      limit: query.limit,
+    });
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.usuariosService.findOne(id, user);
   }
 
@@ -43,7 +59,10 @@ export class UsuariosController {
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.usuariosService.remove(id, user);
   }
 }

@@ -11,18 +11,20 @@ async function bootstrap() {
 
   app.use(
     helmet({
-      frameguard: { action: 'deny' },          // X-Frame-Options: DENY
-      contentSecurityPolicy: false,            // CSP lo gestiona el frontend
+      frameguard: { action: 'deny' }, // X-Frame-Options: DENY
+      contentSecurityPolicy: false, // CSP lo gestiona el frontend
     }),
   );
 
   app.use(cookieParser());
 
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3001'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? [
+      'http://localhost:3001',
+    ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
+    allowedHeaders: ['Content-Type', 'x-csrf-token'],
   });
 
   app.useGlobalFilters(new AllExceptionsFilter());
@@ -40,11 +42,11 @@ async function bootstrap() {
     .setTitle('VetNova API')
     .setDescription('Sistema veterinario API')
     .setVersion('1.0')
-    .addBearerAuth()
+    .addCookieAuth('vetnova-token')
     .build();
 
   SwaggerModule.setup('api', app, SwaggerModule.createDocument(app, config));
 
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+void bootstrap();

@@ -1,4 +1,10 @@
-import { IsDateString, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 const ESTADOS_VALIDOS = [
   'pendiente',
@@ -19,7 +25,9 @@ export class CreateCitaDto {
   hora: string;
 
   @IsOptional()
-  @IsIn(ESTADOS_VALIDOS, { message: `estado debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}` })
+  @IsIn(ESTADOS_VALIDOS, {
+    message: `estado debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`,
+  })
   estado?: string;
 
   @IsOptional()

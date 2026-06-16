@@ -1,4 +1,12 @@
-import { IsEmail, IsIn, IsLatitude, IsLongitude, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsLatitude,
+  IsLongitude,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class UpdateClinicaDto {
   @IsOptional()

@@ -20,6 +20,7 @@ model clinicas {
   estado       String         @default("activa") @db.VarChar(20)
   created_at   DateTime       @default(now()) @db.Timestamp(6)
   citas        citas[]
+  facturas     facturas[]
   mascotas     mascotas[]
   productos    productos[]
   propietarios propietarios[]
@@ -37,8 +38,8 @@ model citas {
   servicio       String?       @db.VarChar(100)
   hora           String?       @db.VarChar(10)
   id_veterinario Int?
-  id_clinica     Int?
-  clinicas       clinicas?     @relation(fields: [id_clinica], references: [id_clinica])
+  id_clinica     Int
+  clinicas       clinicas      @relation(fields: [id_clinica], references: [id_clinica])
   mascotas       mascotas?     @relation(fields: [id_mascota], references: [id_mascota])
   usuarios       usuarios?     @relation(fields: [id_usuario], references: [id_usuario])
   veterinarios   veterinarios? @relation(fields: [id_veterinario], references: [id_veterinario])
@@ -82,8 +83,10 @@ model facturas {
   total             Decimal?            @db.Decimal(10, 2)
   id_propietario    Int?
   id_mascota        Int?
+  id_clinica        Int
   detalle_productos detalle_productos[]
   detalle_servicios detalle_servicios[]
+  clinicas          clinicas            @relation(fields: [id_clinica], references: [id_clinica])
   mascotas          mascotas?           @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
   propietarios      propietarios?       @relation(fields: [id_propietario], references: [id_propietario], onDelete: NoAction, onUpdate: NoAction)
 }
@@ -107,11 +110,11 @@ model mascotas {
   fecha_nacimiento   String?             @db.VarChar(10)
   foto               String?
   sexo               String?             @db.VarChar(20)
-  id_clinica         Int?
+  id_clinica         Int
   citas              citas[]
   facturas           facturas[]
   historias_clinicas historias_clinicas?
-  clinicas           clinicas?           @relation(fields: [id_clinica], references: [id_clinica])
+  clinicas           clinicas            @relation(fields: [id_clinica], references: [id_clinica])
   propietario        propietarios?       @relation(fields: [id_propietario], references: [id_propietario])
   recordatorios      recordatorios[]
   registro_vacunas   registro_vacunas[]
@@ -123,10 +126,10 @@ model productos {
   tipo                   String?                  @db.VarChar(50)
   precio                 Decimal?                 @db.Decimal(10, 2)
   stock                  Int?
-  id_clinica             Int?
+  id_clinica             Int
   detalle_productos      detalle_productos[]
   movimientos_inventario movimientos_inventario[]
-  clinicas               clinicas?                @relation(fields: [id_clinica], references: [id_clinica])
+  clinicas               clinicas                 @relation(fields: [id_clinica], references: [id_clinica])
 }
 
 model propietarios {
@@ -138,10 +141,10 @@ model propietarios {
   documento      String?    @db.VarChar(20)
   estado         String?    @default("activo") @db.VarChar(20)
   id_usuario     Int?       @unique
-  id_clinica     Int?
+  id_clinica     Int
   facturas       facturas[]
   mascotas       mascotas[]
-  clinicas       clinicas?  @relation(fields: [id_clinica], references: [id_clinica])
+  clinicas       clinicas   @relation(fields: [id_clinica], references: [id_clinica])
   usuarios       usuarios?  @relation(fields: [id_usuario], references: [id_usuario])
 }
 
@@ -169,12 +172,6 @@ model recordatorios {
   mascotas           mascotas? @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
 }
 
-model recepcionistas {
-  id_recepcionista Int      @id @default(autoincrement())
-  id_usuario       Int      @unique
-  usuarios         usuarios @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
-}
-
 model roles {
   id_rol   Int        @id @default(autoincrement())
   nombre   String     @unique @db.VarChar(50)
@@ -185,9 +182,9 @@ model servicios {
   id_servicio       Int                 @id @default(autoincrement())
   nombre            String?             @db.VarChar(100)
   precio            Decimal?            @db.Decimal(10, 2)
-  id_clinica        Int?
+  id_clinica        Int
   detalle_servicios detalle_servicios[]
-  clinicas          clinicas?           @relation(fields: [id_clinica], references: [id_clinica])
+  clinicas          clinicas            @relation(fields: [id_clinica], references: [id_clinica])
 }
 
 model usuarios {
@@ -202,7 +199,6 @@ model usuarios {
   notificaciones_recibidas notificaciones[] @relation("notificaciones_destino")
   notificaciones_enviadas  notificaciones[] @relation("notificaciones_origen")
   propietarios             propietarios?
-  recepcionistas           recepcionistas?
   clinicas                 clinicas?        @relation(fields: [id_clinica], references: [id_clinica])
   roles                    roles?           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
   veterinarios             veterinarios?

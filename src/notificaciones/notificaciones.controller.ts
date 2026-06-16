@@ -1,10 +1,18 @@
-import { Controller, Get, Patch, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Param,
+  ParseIntPipe,
+  Query,
+} from '@nestjs/common';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { NotificacionesService } from './notificaciones.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
-@ApiBearerAuth()
+@ApiCookieAuth('vetnova-token')
 @ApiTags('notificaciones')
 @Controller('notificaciones')
 export class NotificacionesController {
@@ -35,5 +43,13 @@ export class NotificacionesController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.notificacionesService.marcarLeida(id, user);
+  }
+
+  @Delete(':id')
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.notificacionesService.remove(id, user);
   }
 }

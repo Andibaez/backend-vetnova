@@ -1,5 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
+import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { ServiciosService } from './servicios.service';
 import { CreateServicioDto } from './dto/create-servicio.dto';
 import { UpdateServicioDto } from './dto/update-servicio.dto';
@@ -8,7 +17,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
-@ApiBearerAuth()
+@ApiCookieAuth('vetnova-token')
 @ApiTags('servicios')
 @Controller('servicios')
 export class ServiciosController {
@@ -22,7 +31,10 @@ export class ServiciosController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.serviciosService.findOne(id, user);
   }
 
@@ -34,13 +46,20 @@ export class ServiciosController {
 
   @Roles(ROLES.ADMIN)
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateServicioDto, @CurrentUser() user: JwtPayload) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateServicioDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.serviciosService.update(id, dto, user);
   }
 
   @Roles(ROLES.ADMIN)
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.serviciosService.remove(id, user);
   }
 }

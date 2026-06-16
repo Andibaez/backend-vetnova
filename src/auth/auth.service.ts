@@ -7,11 +7,12 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { OAuth2Client } from 'google-auth-library';
+import { OAuth2Client, type LoginTicket } from 'google-auth-library';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
@@ -40,19 +41,23 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
 
-    // El registro público nunca puede crear Administradores ni SuperAdministradores
-    const roleName: RoleName =
-      dto.rol && dto.rol !== ROLES.ADMIN && dto.rol !== ROLES.SUPER_ADMIN
-        ? (dto.rol as RoleName)
-        : ROLES.CLIENTE;
+    // El registro público siempre crea clientes. Otros roles se gestionan desde usuarios internos.
+    const roleName: RoleName = ROLES.CLIENTE;
 
     const clinica = await this.resolveClinicaBySlug(dto.clinicaSlug);
 
     const existing = await this.prisma.usuarios.findUnique({
-      where: { email_id_clinica: { email: normalizedEmail, id_clinica: clinica.id_clinica } },
+      where: {
+        email_id_clinica: {
+          email: normalizedEmail,
+          id_clinica: clinica.id_clinica,
+        },
+      },
     });
     if (existing) {
-      throw new ConflictException('Ya existe una cuenta con ese correo en esta clínica.');
+      throw new ConflictException(
+        'Ya existe una cuenta con ese correo en esta clínica.',
+      );
     }
 
     const rol = await this.findOrCreateRole(roleName);
@@ -69,7 +74,13 @@ export class AuthService {
       include: { roles: true },
     });
 
-    await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName, clinica.id_clinica);
+    await this.createRoleProfile(
+      user.id_usuario,
+      user.nombre,
+      normalizedEmail,
+      roleName,
+      clinica.id_clinica,
+    );
 
     if (roleName === ROLES.CLIENTE) {
       await this.notificaciones.crearParaUsuario(
@@ -89,10 +100,23 @@ export class AuthService {
       );
     }
 
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, clinica.id_clinica);
+    const token = this.signToken(
+      user.id_usuario,
+      user.nombre!,
+      normalizedEmail,
+      roleName,
+      clinica.id_clinica,
+    );
     return {
       token,
-      user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, clinica.id_clinica, clinica.nombre),
+      user: this.sanitize(
+        user.id_usuario,
+        user.nombre!,
+        normalizedEmail,
+        roleName,
+        clinica.id_clinica,
+        clinica.nombre,
+      ),
     };
   }
 
@@ -100,7 +124,12 @@ export class AuthService {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const candidates = await this.prisma.usuarios.findMany({
       where: { email: normalizedEmail },
-      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+      include: {
+        roles: true,
+        clinicas: {
+          select: { id_clinica: true, nombre: true, slug: true, estado: true },
+        },
+      },
     });
 
     if (candidates.length === 0) {
@@ -109,7 +138,8 @@ export class AuthService {
 
     const matches: typeof candidates = [];
     for (const candidate of candidates) {
-      if (await bcrypt.compare(dto.password, candidate.password)) matches.push(candidate);
+      if (await bcrypt.compare(dto.password, candidate.password))
+        matches.push(candidate);
     }
 
     if (matches.length === 0) {
@@ -119,33 +149,60 @@ export class AuthService {
     let user = matches[0];
     if (matches.length > 1) {
       if (dto.clinicaSlug) {
-        const selected = matches.find((m) => m.clinicas?.slug === dto.clinicaSlug);
+        const selected = matches.find(
+          (m) => m.clinicas?.slug === dto.clinicaSlug,
+        );
         if (!selected) {
-          throw new UnauthorizedException('No tienes una cuenta en esa clínica.');
+          throw new UnauthorizedException(
+            'No tienes una cuenta en esa clínica.',
+          );
         }
         user = selected;
       } else {
         return {
           requiresClinicSelection: true as const,
-          clinicas: matches.map((m) => ({ nombre: m.clinicas?.nombre ?? '', slug: m.clinicas?.slug ?? '' })),
+          clinicas: matches.map((m) => ({
+            nombre: m.clinicas?.nombre ?? '',
+            slug: m.clinicas?.slug ?? '',
+          })),
         };
       }
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
+    this.assertAuthenticatedClinic(user, roleName, dto.clinicaSlug);
 
     // Crear perfil si por alguna razón no existe aún
-    await this.ensureRoleProfile(user.id_usuario, user.nombre, normalizedEmail, roleName, user.id_clinica);
+    await this.ensureRoleProfile(
+      user.id_usuario,
+      user.nombre,
+      normalizedEmail,
+      roleName,
+      user.id_clinica,
+    );
 
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
+    const token = this.signToken(
+      user.id_usuario,
+      user.nombre!,
+      normalizedEmail,
+      roleName,
+      user.id_clinica,
+    );
     return {
       token,
-      user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica, user.clinicas?.nombre),
+      user: this.sanitize(
+        user.id_usuario,
+        user.nombre!,
+        normalizedEmail,
+        roleName,
+        user.id_clinica,
+        user.clinicas?.nombre,
+      ),
     };
   }
 
   async googleAuth(dto: GoogleAuthDto) {
-    let ticket;
+    let ticket: LoginTicket;
     try {
       ticket = await this.googleClient.verifyIdToken({
         idToken: dto.credential,
@@ -156,12 +213,18 @@ export class AuthService {
     }
 
     const payload = ticket.getPayload();
-    if (!payload?.email) throw new UnauthorizedException('Token de Google sin email.');
+    if (!payload?.email)
+      throw new UnauthorizedException('Token de Google sin email.');
 
     const normalizedEmail = payload.email.trim().toLowerCase();
     const candidates = await this.prisma.usuarios.findMany({
       where: { email: normalizedEmail },
-      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+      include: {
+        roles: true,
+        clinicas: {
+          select: { id_clinica: true, nombre: true, slug: true, estado: true },
+        },
+      },
     });
 
     let user = dto.clinicaSlug
@@ -175,7 +238,10 @@ export class AuthService {
         } else {
           return {
             requiresClinicSelection: true as const,
-            clinicas: candidates.map((c) => ({ nombre: c.clinicas?.nombre ?? '', slug: c.clinicas?.slug ?? '' })),
+            clinicas: candidates.map((c) => ({
+              nombre: c.clinicas?.nombre ?? '',
+              slug: c.clinicas?.slug ?? '',
+            })),
           };
         }
       } else {
@@ -185,45 +251,93 @@ export class AuthService {
           data: {
             nombre: (payload.name ?? normalizedEmail).trim(),
             email: normalizedEmail,
-            password: await bcrypt.hash(Math.random().toString(36), 10),
+            password: await bcrypt.hash(randomBytes(32).toString('hex'), 10),
             id_rol: rol.id_rol,
             id_clinica: clinica.id_clinica,
           },
-          include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true, slug: true } } },
+          include: {
+            roles: true,
+            clinicas: {
+              select: {
+                id_clinica: true,
+                nombre: true,
+                slug: true,
+                estado: true,
+              },
+            },
+          },
         });
-        await this.createRoleProfile(user.id_usuario, user.nombre, normalizedEmail, ROLES.CLIENTE, clinica.id_clinica);
+        await this.createRoleProfile(
+          user.id_usuario,
+          user.nombre,
+          normalizedEmail,
+          ROLES.CLIENTE,
+          clinica.id_clinica,
+        );
       }
     }
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
-    const token = this.signToken(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica);
+    this.assertAuthenticatedClinic(user, roleName, dto.clinicaSlug);
+    const token = this.signToken(
+      user.id_usuario,
+      user.nombre!,
+      normalizedEmail,
+      roleName,
+      user.id_clinica,
+    );
     return {
       token,
-      user: this.sanitize(user.id_usuario, user.nombre!, normalizedEmail, roleName, user.id_clinica, user.clinicas?.nombre),
+      user: this.sanitize(
+        user.id_usuario,
+        user.nombre!,
+        normalizedEmail,
+        roleName,
+        user.id_clinica,
+        user.clinicas?.nombre,
+      ),
     };
   }
 
   async me(userId: number) {
     const user = await this.prisma.usuarios.findUnique({
       where: { id_usuario: userId },
-      include: { roles: true, clinicas: { select: { id_clinica: true, nombre: true } } },
+      include: {
+        roles: true,
+        clinicas: { select: { id_clinica: true, nombre: true } },
+      },
     });
     if (!user) throw new NotFoundException('Usuario no encontrado.');
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
-    return this.sanitize(user.id_usuario, user.nombre!, user.email, roleName, user.id_clinica, user.clinicas?.nombre);
+    return this.sanitize(
+      user.id_usuario,
+      user.nombre!,
+      user.email,
+      roleName,
+      user.id_clinica,
+      user.clinicas?.nombre,
+    );
   }
 
   /**
    * Resuelve la clínica asociada a un registro a partir de su slug.
    * El SuperAdministrador no pertenece a ninguna clínica (slug ausente).
    */
-  private async resolveClinicaBySlug(slug?: string): Promise<{ id_clinica: number; nombre: string }> {
+  private async resolveClinicaBySlug(
+    slug?: string,
+  ): Promise<{ id_clinica: number; nombre: string }> {
     if (!slug) {
-      throw new BadRequestException('Debes registrarte a través del enlace de tu clínica.');
+      throw new BadRequestException(
+        'Debes registrarte a través del enlace de tu clínica.',
+      );
     }
-    const clinica = await this.prisma.clinicas.findUnique({ where: { slug } });
+    const clinica = await this.prisma.clinicas.findUnique({
+      where: { slug: slug.trim().toLowerCase() },
+    });
     if (!clinica || clinica.estado !== 'activa') {
-      throw new BadRequestException('Enlace de registro de clínica inválido o inactivo.');
+      throw new BadRequestException(
+        'Enlace de registro de clínica inválido o inactivo.',
+      );
     }
     return { id_clinica: clinica.id_clinica, nombre: clinica.nombre };
   }
@@ -236,6 +350,10 @@ export class AuthService {
     id_clinica: number | null,
   ) {
     if (role === ROLES.CLIENTE) {
+      if (!id_clinica)
+        throw new BadRequestException(
+          'El cliente debe tener una clínica asociada.',
+        );
       await this.prisma.propietarios.create({
         data: { nombre, email, id_usuario, id_clinica },
       });
@@ -252,11 +370,23 @@ export class AuthService {
     id_clinica: number | null,
   ) {
     if (role === ROLES.CLIENTE) {
-      const exists = await this.prisma.propietarios.findUnique({ where: { id_usuario } });
-      if (!exists) await this.prisma.propietarios.create({ data: { nombre, email, id_usuario, id_clinica } });
+      if (!id_clinica)
+        throw new BadRequestException(
+          'El cliente debe tener una clínica asociada.',
+        );
+      const exists = await this.prisma.propietarios.findUnique({
+        where: { id_usuario },
+      });
+      if (!exists)
+        await this.prisma.propietarios.create({
+          data: { nombre, email, id_usuario, id_clinica },
+        });
     } else if (role === ROLES.VETERINARIO) {
-      const exists = await this.prisma.veterinarios.findUnique({ where: { id_usuario } });
-      if (!exists) await this.prisma.veterinarios.create({ data: { id_usuario } });
+      const exists = await this.prisma.veterinarios.findUnique({
+        where: { id_usuario },
+      });
+      if (!exists)
+        await this.prisma.veterinarios.create({ data: { id_usuario } });
     }
   }
 
@@ -267,43 +397,72 @@ export class AuthService {
     });
 
     // Respuesta idéntica si el usuario existe o no — evita user enumeration
-    if (!user) return { message: 'Si el correo está registrado, recibirás un enlace de recuperación.' };
+    if (!user)
+      return {
+        message:
+          'Si el correo está registrado, recibirás un enlace de recuperación.',
+      };
 
     const payload: ResetTokenPayload = { sub: user.id_usuario, type: 'reset' };
     // El secreto incluye el hash actual de la contraseña — al cambiarla el token queda inválido
     const resetSecret = this.config.get<string>('JWT_SECRET')! + user.password;
-    const resetToken = this.jwt.sign(payload, { secret: resetSecret, expiresIn: '1h' });
+    const resetToken = this.jwt.sign(payload, {
+      secret: resetSecret,
+      expiresIn: '1h',
+    });
 
-    const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
+    const frontendUrl =
+      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
-    await this.mail.sendPasswordReset(normalizedEmail, user.nombre ?? 'Usuario', resetLink);
+    await this.mail.sendPasswordReset(
+      normalizedEmail,
+      user.nombre ?? 'Usuario',
+      resetLink,
+    );
 
-    return { message: 'Si el correo está registrado, recibirás un enlace de recuperación.' };
+    return {
+      message:
+        'Si el correo está registrado, recibirás un enlace de recuperación.',
+    };
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     // Decodificar sin verificar para obtener el sub y buscar al usuario
     let unverified: ResetTokenPayload;
     try {
-      unverified = this.jwt.decode(token) as ResetTokenPayload;
+      unverified = this.jwt.decode(token);
     } catch {
-      throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+      throw new UnauthorizedException(
+        'El enlace de recuperación es inválido o ha expirado.',
+      );
     }
 
     if (!unverified?.sub || unverified.type !== 'reset') {
-      throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+      throw new UnauthorizedException(
+        'El enlace de recuperación es inválido o ha expirado.',
+      );
     }
 
-    const user = await this.prisma.usuarios.findUnique({ where: { id_usuario: unverified.sub } });
-    if (!user) throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+    const user = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: unverified.sub },
+    });
+    if (!user)
+      throw new UnauthorizedException(
+        'El enlace de recuperación es inválido o ha expirado.',
+      );
 
     // Verificar con el secreto que incluye el hash actual — falla si la contraseña ya cambió
     const resetSecret = this.config.get<string>('JWT_SECRET')! + user.password;
     try {
       this.jwt.verify<ResetTokenPayload>(token, { secret: resetSecret });
     } catch {
-      throw new UnauthorizedException('El enlace de recuperación es inválido o ha expirado.');
+      throw new UnauthorizedException(
+        'El enlace de recuperación es inválido o ha expirado.',
+      );
     }
 
     const hashed = await bcrypt.hash(newPassword, 10);
@@ -323,8 +482,51 @@ export class AuthService {
     return rol;
   }
 
-  private signToken(id: number, name: string, email: string, role: RoleName, clinicaId: number | null = null) {
-    const payload: Omit<JwtPayload, 'iat' | 'exp'> = { sub: id, name, email, role, clinicaId };
+  private assertAuthenticatedClinic(
+    user: {
+      id_clinica: number | null;
+      clinicas?: {
+        slug: string;
+        estado: string;
+        nombre?: string | null;
+      } | null;
+    },
+    role: RoleName,
+    clinicaSlug?: string,
+  ) {
+    if (role === ROLES.SUPER_ADMIN) return;
+    if (!user.id_clinica || !user.clinicas) {
+      throw new UnauthorizedException(
+        'El usuario no tiene una clínica asociada.',
+      );
+    }
+    if (
+      clinicaSlug &&
+      user.clinicas.slug !== clinicaSlug.trim().toLowerCase()
+    ) {
+      throw new UnauthorizedException(
+        'No perteneces a la clínica seleccionada.',
+      );
+    }
+    if (user.clinicas.estado !== 'activa') {
+      throw new UnauthorizedException('La clínica no está activa.');
+    }
+  }
+
+  private signToken(
+    id: number,
+    name: string,
+    email: string,
+    role: RoleName,
+    clinicaId: number | null = null,
+  ) {
+    const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
+      sub: id,
+      name,
+      email,
+      role,
+      clinicaId,
+    };
     return this.jwt.sign(payload);
   }
 

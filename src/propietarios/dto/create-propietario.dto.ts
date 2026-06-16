@@ -1,4 +1,10 @@
-import { IsEmail, IsInt, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreatePropietarioDto {
   @IsString()

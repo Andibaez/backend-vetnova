@@ -179,7 +179,7 @@ export class CitasService {
     id_usuario?: number,
   ) {
     const { take, skip } = paginate(pagination.page, pagination.limit);
-    const order = [{ fecha: 'asc' as const }, { hora: 'asc' as const }];
+    const order = [{ fecha: 'desc' as const }, { hora: 'desc' as const }];
 
     if (user.role === ROLES.CLIENTE) {
       const where = { id_usuario: user.sub, ...tenantWhere(user) };

@@ -8,7 +8,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
 import { UpdateCitaDto } from './dto/update-cita.dto';
-import { FindCitasDto } from './dto/find-citas.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
 import { tenantWhere } from '../common/utils/tenant.util';

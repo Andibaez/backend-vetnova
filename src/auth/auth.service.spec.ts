@@ -88,7 +88,7 @@ describe('AuthService', () => {
   describe('register', () => {
     it('lanza ConflictException si el email ya existe en esa clínica', async () => {
       mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
-      mockPrisma.usuarios.findUnique.mockResolvedValue({
+      mockPrisma.usuarios.findFirst.mockResolvedValue({
         id_usuario: 1,
         email: 'a@b.com',
       });
@@ -104,7 +104,7 @@ describe('AuthService', () => {
 
     it('siempre asigna rol Cliente sin importar lo que venga', async () => {
       mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
-      mockPrisma.usuarios.findUnique.mockResolvedValue(null);
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
       mockPrisma.roles.findUnique.mockResolvedValue({
         id_rol: 3,
         nombre: 'Cliente',
@@ -133,7 +133,7 @@ describe('AuthService', () => {
 
     it('normaliza el email a minúsculas', async () => {
       mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
-      mockPrisma.usuarios.findUnique.mockResolvedValue(null);
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
       mockPrisma.roles.findUnique.mockResolvedValue({
         id_rol: 3,
         nombre: 'Cliente',
@@ -154,16 +154,14 @@ describe('AuthService', () => {
         clinicaSlug: 'test-clinic',
       });
 
-      expect(mockPrisma.usuarios.findUnique).toHaveBeenCalledWith({
-        where: {
-          email_id_clinica: { email: 'test@example.com', id_clinica: 1 },
-        },
+      expect(mockPrisma.usuarios.findFirst).toHaveBeenCalledWith({
+        where: { email: 'test@example.com', id_clinica: 1 },
       });
     });
 
     it('crea perfil de propietario para rol Cliente', async () => {
       mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
-      mockPrisma.usuarios.findUnique.mockResolvedValue(null);
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
       mockPrisma.roles.findUnique.mockResolvedValue({
         id_rol: 3,
         nombre: 'Cliente',

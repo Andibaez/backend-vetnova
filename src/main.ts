@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
@@ -14,6 +15,8 @@ async function bootstrap() {
       contentSecurityPolicy: false, // CSP lo gestiona el frontend
     }),
   );
+
+  app.use(cookieParser());
 
   app.enableCors({
     origin: process.env.ALLOWED_ORIGINS?.split(',') ?? [

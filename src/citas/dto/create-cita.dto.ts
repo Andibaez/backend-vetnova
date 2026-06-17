@@ -49,8 +49,13 @@ export class CreateCitaDto {
   @IsInt()
   id_veterinario?: number;
 
-  /** Nombre del veterinario — usado como fallback si no se envía id_veterinario */
+  /** Nombre del veterinario — fallback si no se envía id_veterinario ni id_usuario_veterinario */
   @IsOptional()
   @IsString()
   veterinario?: string;
+
+  /** id_usuario del veterinario — lookup más confiable que buscar por nombre */
+  @IsOptional()
+  @IsInt()
+  id_usuario_veterinario?: number;
 }

@@ -16,6 +16,7 @@ import { VeterinariosModule } from './veterinarios/veterinarios.module';
 import { RecordatoriosModule } from './recordatorios/recordatorios.module';
 import { HistoriasClinicasModule } from './historias-clinicas/historias-clinicas.module';
 import { ClinicasModule } from './clinicas/clinicas.module';
+import { HealthModule } from './health/health.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { CsrfGuard } from './auth/guards/csrf.guard';
@@ -37,6 +38,7 @@ import { CsrfGuard } from './auth/guards/csrf.guard';
     RecordatoriosModule,
     HistoriasClinicasModule,
     ClinicasModule,
+    HealthModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

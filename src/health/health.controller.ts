@@ -12,15 +12,19 @@ export class HealthController {
     private prisma: PrismaService,
   ) {}
 
+  // Liveness: ¿el proceso sigue vivo? Usado por el HEALTHCHECK del Dockerfile.
   @Get()
   @HealthCheck()
   liveness() {
     return this.health.check([]);
   }
 
+  // Readiness: ¿puede atender tráfico real? Verifica NeonDB.
   @Get('ready')
   @HealthCheck()
   readiness() {
-    return this.health.check([() => this.prismaIndicator.pingCheck('database', this.prisma)]);
+    return this.health.check([
+      () => this.prismaIndicator.pingCheck('database', this.prisma),
+    ]);
   }
 }

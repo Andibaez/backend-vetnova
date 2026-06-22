@@ -2,12 +2,18 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { ClinicasService } from './clinicas.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { ROLES } from '../common/constants/roles.constant';
+
+const mockMail = {
+  sendTemporaryPassword: jest.fn().mockResolvedValue(undefined),
+};
 
 const mockPrisma = {
   clinicas: {
     findMany: jest.fn(),
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   },
@@ -19,6 +25,11 @@ const mockPrisma = {
   roles: {
     findUnique: jest.fn(),
     create: jest.fn(),
+  },
+  admin_history: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
   },
   $transaction: jest.fn(),
 };
@@ -59,6 +70,7 @@ describe('ClinicasService', () => {
       providers: [
         ClinicasService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: MailService, useValue: mockMail },
       ],
     }).compile();
 
@@ -168,7 +180,10 @@ describe('ClinicasService', () => {
   });
 
   it('actualiza clínica existente', async () => {
-    mockPrisma.clinicas.findUnique.mockResolvedValue({ id_clinica: 1 });
+    mockPrisma.clinicas.findFirst.mockResolvedValue({
+      id_clinica: 1,
+      usuarios: [],
+    });
     mockPrisma.clinicas.update.mockResolvedValue({
       id_clinica: 1,
       nombre: 'Nueva',
@@ -183,7 +198,7 @@ describe('ClinicasService', () => {
   });
 
   it('lanza NotFoundException al actualizar clínica inexistente', async () => {
-    mockPrisma.clinicas.findUnique.mockResolvedValue(null);
+    mockPrisma.clinicas.findFirst.mockResolvedValue(null);
 
     await expect(service.update(99, { nombre: 'Nueva' })).rejects.toThrow(
       NotFoundException,

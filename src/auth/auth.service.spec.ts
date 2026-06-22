@@ -57,7 +57,13 @@ const mockConfig = {
   getOrThrow: jest.fn().mockReturnValue('mock-secret'),
 };
 
-const mockMail = { sendPasswordReset: jest.fn() };
+const mockMail = {
+  sendPasswordReset: jest.fn(),
+  sendWelcome: jest.fn(),
+  sendAppointmentConfirmation: jest.fn(),
+  sendAppointmentReminder: jest.fn(),
+  sendAppointmentCancelled: jest.fn(),
+};
 
 const mockNotificaciones = {
   crearParaUsuario: jest.fn(),

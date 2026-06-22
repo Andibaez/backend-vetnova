@@ -7,8 +7,10 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Res,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { HistoriasClinicasService } from './historias-clinicas.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { UpdateConsultaDto } from './dto/update-consulta.dto';
@@ -30,6 +32,35 @@ export class HistoriasClinicasController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.historiasService.findByMascota(id_mascota, user);
+  }
+
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
+  @Get('mascota/:id_mascota/timeline')
+  getTimeline(
+    @Param('id_mascota', ParseIntPipe) id_mascota: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.historiasService.getTimeline(id_mascota, user);
+  }
+
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
+  @Get('mascota/:id_mascota/download')
+  async downloadTimelinePdf(
+    @Param('id_mascota', ParseIntPipe) id_mascota: number,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: Response,
+  ) {
+    const pdfBuffer = await this.historiasService.generateTimelinePdf(
+      id_mascota,
+      user,
+    );
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="historial-clinico-${id_mascota}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+    });
+    res.end(pdfBuffer);
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)

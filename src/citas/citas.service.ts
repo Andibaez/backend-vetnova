@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { MailService } from '../mail/mail.service';
 import { CreateCitaDto } from './dto/create-cita.dto';
 import { UpdateCitaDto } from './dto/update-cita.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
@@ -21,7 +22,7 @@ const CITA_INCLUDE = {
   mascotas: {
     include: { propietario: true },
   },
-  usuarios: { select: { id_usuario: true, nombre: true } },
+  usuarios: { select: { id_usuario: true, nombre: true, email: true } },
   veterinarios: {
     select: {
       id_veterinario: true,
@@ -51,6 +52,7 @@ export class CitasService {
   constructor(
     private prisma: PrismaService,
     private notificaciones: NotificacionesService,
+    private mail: MailService,
   ) {}
 
   async create(dto: CreateCitaDto, user: JwtPayload) {
@@ -172,6 +174,17 @@ export class CitasService {
       }
     }
 
+    if (cita.usuarios?.email) {
+      await this.mail.sendAppointmentConfirmation(cita.usuarios.email, {
+        nombre: cita.usuarios.nombre ?? 'cliente',
+        mascota: mascotaNombre,
+        fecha: this.formatFecha(cita.fecha),
+        hora: cita.hora ?? dto.hora,
+        servicio: cita.servicio,
+        veterinario: cita.veterinarios?.usuarios?.nombre ?? null,
+      });
+    }
+
     return flattenVeterinario(cita);
   }
 
@@ -279,7 +292,10 @@ export class CitasService {
   async update(id: number, dto: UpdateCitaDto, user: JwtPayload) {
     const existing = await this.prisma.citas.findUnique({
       where: { id_cita: id },
-      include: { mascotas: true },
+      include: {
+        mascotas: true,
+        usuarios: { select: { id_usuario: true, nombre: true, email: true } },
+      },
     });
     if (!existing) throw new NotFoundException('Cita no existe');
     if (
@@ -382,6 +398,11 @@ export class CitasService {
       fecha: Date | null;
       hora: string | null;
       mascotas: { nombre: string | null } | null;
+      usuarios?: {
+        id_usuario: number;
+        nombre: string | null;
+        email: string;
+      } | null;
     },
     cita: {
       id_cita: number;
@@ -440,15 +461,47 @@ export class CitasService {
       cita.id_cita,
       'cita',
     );
+
+    if (estadoCambio && cita.estado === 'cancelada' && existing.usuarios?.email) {
+      await this.mail.sendAppointmentCancelled(existing.usuarios.email, {
+        nombre: existing.usuarios.nombre ?? 'cliente',
+        mascota: mascotaNombre,
+        fecha: fechaTexto,
+        hora: horaTexto,
+      });
+    }
   }
 
   async remove(id: number, user: JwtPayload) {
-    const cita = await this.prisma.citas.findUnique({ where: { id_cita: id } });
+    const cita = await this.prisma.citas.findUnique({
+      where: { id_cita: id },
+      include: {
+        mascotas: true,
+        usuarios: { select: { nombre: true, email: true } },
+      },
+    });
     if (!cita) throw new NotFoundException('Cita no existe');
     if (user.role !== ROLES.SUPER_ADMIN && cita.id_clinica !== user.clinicaId) {
       throw new NotFoundException('Cita no existe');
     }
-    return this.prisma.citas.delete({ where: { id_cita: id } });
+    const deleted = await this.prisma.citas.delete({ where: { id_cita: id } });
+
+    if (cita.usuarios?.email && cita.fecha && cita.hora) {
+      await this.mail.sendAppointmentCancelled(cita.usuarios.email, {
+        nombre: cita.usuarios.nombre ?? 'cliente',
+        mascota: cita.mascotas?.nombre ?? 'tu mascota',
+        fecha: this.formatFecha(cita.fecha),
+        hora: cita.hora,
+      });
+    }
+
+    return deleted;
+  }
+
+  private formatFecha(fecha: Date | string | null | undefined): string {
+    if (!fecha) return '';
+    const date = typeof fecha === 'string' ? new Date(fecha) : fecha;
+    return date.toISOString().slice(0, 10);
   }
 
   private requireClinicaId(user?: JwtPayload) {

@@ -1,0 +1,17 @@
+<h1 style="margin:0 0 16px; font-size:18px; color:#111827;">Tu cita fue confirmada</h1>
+<p style="margin:0 0 16px; font-size:14px; color:#374151; line-height:1.5;">
+  Hola <strong>{{nombre}}</strong>, te confirmamos los detalles de la cita para <strong>{{mascota}}</strong>:
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F4F6; border-radius:8px; margin-bottom:16px;">
+  <tr>
+    <td style="padding:16px; font-size:14px; color:#111827;">
+      <p style="margin:0 0 8px;"><strong>Fecha:</strong> {{fecha}}</p>
+      <p style="margin:0 0 8px;"><strong>Hora:</strong> {{hora}}</p>
+      {{#if servicio}}<p style="margin:0 0 8px;"><strong>Servicio:</strong> {{servicio}}</p>{{/if}}
+      {{#if veterinario}}<p style="margin:0;"><strong>Veterinario:</strong> {{veterinario}}</p>{{/if}}
+    </td>
+  </tr>
+</table>
+<p style="margin:0; font-size:14px; color:#374151; line-height:1.5;">
+  Si necesitas reprogramar o cancelar, contáctanos con anticipación. ¡Te esperamos!
+</p>

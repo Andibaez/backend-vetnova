@@ -6,10 +6,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificacionesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {}
 
   async findAll(user: JwtPayload, soloNoLeidas?: boolean) {
     const clinicaId = this.requireClinicaId(user);
@@ -119,7 +123,7 @@ export class NotificacionesService {
   ) {
     await this.assertSameClinic(id_usuario_destino, id_usuario_origen);
 
-    await this.prisma.notificaciones.create({
+    const notificacion = await this.prisma.notificaciones.create({
       data: {
         titulo,
         mensaje,
@@ -130,6 +134,11 @@ export class NotificacionesService {
         referencia_tipo: referencia_tipo ?? null,
       },
     });
+
+    this.notificationsGateway.emitToUser(
+      id_usuario_destino,
+      this.toDto(notificacion),
+    );
   }
 
   async crearParaAdmins(
@@ -159,6 +168,17 @@ export class NotificacionesService {
         referencia_tipo: referencia_tipo ?? null,
       })),
     });
+
+    const createdAt = new Date();
+    for (const admin of admins) {
+      this.notificationsGateway.emitToUser(admin.id_usuario, {
+        titulo,
+        mensaje,
+        tipo,
+        leida: false,
+        creadaEn: createdAt.toISOString(),
+      });
+    }
   }
 
   private requireClinicaId(user?: JwtPayload) {

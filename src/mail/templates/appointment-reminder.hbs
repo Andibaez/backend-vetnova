@@ -1,0 +1,17 @@
+<h1 style="margin:0 0 16px; font-size:18px; color:#111827;">Recordatorio de tu cita de mañana</h1>
+<p style="margin:0 0 16px; font-size:14px; color:#374151; line-height:1.5;">
+  Hola <strong>{{nombre}}</strong>, te recordamos que <strong>{{mascota}}</strong> tiene una cita programada en menos de 24 horas:
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#EEF2FF; border-radius:8px; margin-bottom:16px;">
+  <tr>
+    <td style="padding:16px; font-size:14px; color:#111827;">
+      <p style="margin:0 0 8px;"><strong>Fecha:</strong> {{fecha}}</p>
+      <p style="margin:0 0 8px;"><strong>Hora:</strong> {{hora}}</p>
+      {{#if servicio}}<p style="margin:0 0 8px;"><strong>Servicio:</strong> {{servicio}}</p>{{/if}}
+      {{#if veterinario}}<p style="margin:0;"><strong>Veterinario:</strong> {{veterinario}}</p>{{/if}}
+    </td>
+  </tr>
+</table>
+<p style="margin:0; font-size:14px; color:#374151; line-height:1.5;">
+  Por favor llega unos minutos antes. Si no puedes asistir, contáctanos para reprogramar.
+</p>

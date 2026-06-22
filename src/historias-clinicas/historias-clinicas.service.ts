@@ -3,11 +3,23 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { UpdateConsultaDto } from './dto/update-consulta.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
+
+export type TimelineEventType = 'consulta' | 'vacuna';
+
+export interface TimelineEvent {
+  tipo: TimelineEventType;
+  fecha: Date | null;
+  titulo: string;
+  descripcion: string | null;
+  registradoPor?: string | null;
+  proximaFecha?: Date | null;
+}
 
 @Injectable()
 export class HistoriasClinicasService {
@@ -31,6 +43,164 @@ export class HistoriasClinicasService {
     });
 
     return historia ?? { id_mascota, consultas: [] };
+  }
+
+  /**
+   * Construye el timeline completo (consultas + vacunas) de una mascota,
+   * ordenado por fecha descendente. Usado por la vista de Cliente y el PDF.
+   */
+  async getTimeline(id_mascota: number, user: JwtPayload) {
+    const mascota = await this.prisma.mascotas.findUnique({
+      where: { id_mascota },
+      include: { clinicas: { select: { nombre: true } } },
+    });
+    if (!mascota) throw new NotFoundException('Mascota no encontrada.');
+    await this.assertMascotaAccess(mascota, user);
+
+    const [historia, vacunas] = await Promise.all([
+      this.prisma.historias_clinicas.findUnique({
+        where: { id_mascota },
+        include: {
+          consultas: {
+            include: { usuarios: { select: { nombre: true } } },
+            orderBy: { fecha: 'desc' },
+          },
+        },
+      }),
+      this.prisma.registro_vacunas.findMany({
+        where: { id_mascota },
+        include: { vacunas: { select: { nombre: true } } },
+        orderBy: { fecha: 'desc' },
+      }),
+    ]);
+
+    const eventosConsultas: TimelineEvent[] = (historia?.consultas ?? []).map(
+      (c) => ({
+        tipo: 'consulta',
+        fecha: c.fecha,
+        titulo: c.motivo || 'Consulta',
+        descripcion: [
+          c.diagnostico ? `Diagnóstico: ${c.diagnostico}` : null,
+          c.tratamiento ? `Tratamiento: ${c.tratamiento}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ') || null,
+        registradoPor: c.usuarios?.nombre ?? null,
+      }),
+    );
+
+    const eventosVacunas: TimelineEvent[] = vacunas.map((v) => ({
+      tipo: 'vacuna',
+      fecha: v.fecha,
+      titulo: v.vacunas?.nombre ? `Vacuna: ${v.vacunas.nombre}` : 'Vacuna',
+      descripcion: v.proxima_fecha
+        ? `Próxima dosis: ${v.proxima_fecha.toISOString().slice(0, 10)}`
+        : null,
+      proximaFecha: v.proxima_fecha,
+    }));
+
+    const eventos = [...eventosConsultas, ...eventosVacunas].sort((a, b) => {
+      const fa = a.fecha ? a.fecha.getTime() : 0;
+      const fb = b.fecha ? b.fecha.getTime() : 0;
+      return fb - fa;
+    });
+
+    return {
+      mascota: {
+        id_mascota: mascota.id_mascota,
+        nombre: mascota.nombre,
+        especie: mascota.especie,
+        raza: mascota.raza,
+        clinica: mascota.clinicas?.nombre ?? null,
+      },
+      eventos,
+    };
+  }
+
+  async generateTimelinePdf(
+    id_mascota: number,
+    user: JwtPayload,
+  ): Promise<Buffer> {
+    const { mascota, eventos } = await this.getTimeline(id_mascota, user);
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err: Error) => reject(err));
+
+      doc
+        .fontSize(18)
+        .font('Helvetica-Bold')
+        .text('Historial clínico', { align: 'left' });
+      doc.moveDown(0.3);
+
+      doc
+        .fontSize(12)
+        .font('Helvetica-Bold')
+        .text(`Mascota: ${mascota.nombre ?? '—'}`);
+      doc
+        .font('Helvetica')
+        .fontSize(10)
+        .text(
+          `Especie: ${mascota.especie ?? '—'}   Raza: ${mascota.raza ?? '—'}`,
+        );
+      if (mascota.clinica) {
+        doc.text(`Clínica: ${mascota.clinica}`);
+      }
+      doc.text(`Generado el: ${new Date().toLocaleDateString('es-CO')}`);
+      doc.moveDown(0.8);
+
+      doc
+        .moveTo(doc.x, doc.y)
+        .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+        .strokeColor('#CCCCCC')
+        .stroke();
+      doc.moveDown(0.6);
+
+      if (eventos.length === 0) {
+        doc
+          .fontSize(11)
+          .font('Helvetica')
+          .text('No hay eventos clínicos registrados para esta mascota.');
+      } else {
+        for (const evento of eventos) {
+          const fechaStr = evento.fecha
+            ? new Date(evento.fecha).toLocaleDateString('es-CO')
+            : 'Sin fecha';
+          const tipoStr = evento.tipo === 'consulta' ? 'Consulta' : 'Vacuna';
+
+          doc
+            .fontSize(10)
+            .font('Helvetica-Bold')
+            .fillColor('#1A0F35')
+            .text(`${fechaStr}  ·  ${tipoStr}`);
+          doc
+            .font('Helvetica-Bold')
+            .fontSize(10)
+            .fillColor('#1A0F35')
+            .text(evento.titulo);
+          if (evento.descripcion) {
+            doc
+              .font('Helvetica')
+              .fontSize(9.5)
+              .fillColor('#444444')
+              .text(evento.descripcion);
+          }
+          if (evento.registradoPor) {
+            doc
+              .font('Helvetica-Oblique')
+              .fontSize(8.5)
+              .fillColor('#777777')
+              .text(`Registrado por: ${evento.registradoPor}`);
+          }
+          doc.moveDown(0.6);
+        }
+      }
+
+      doc.end();
+    });
   }
 
   async createConsulta(dto: CreateConsultaDto, user: JwtPayload) {

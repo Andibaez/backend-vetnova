@@ -1,9 +1,11 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { LoggingMiddleware } from './common/middleware/logging.middleware';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
+import { MailModule } from './mail/mail.module';
 import { MascotasModule } from './mascotas/mascotas.module';
 import { PropietariosModule } from './propietarios/propietarios.module';
 import { CitasModule } from './citas/citas.module';
@@ -24,8 +26,10 @@ import { CsrfGuard } from './auth/guards/csrf.guard';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ name: 'global', ttl: 60000, limit: 60 }]),
     PrismaModule,
+    MailModule,
     AuthModule,
     UsuariosModule,
     MascotasModule,

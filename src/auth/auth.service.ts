@@ -93,6 +93,11 @@ export class AuthService {
         user.id_usuario,
         'usuario',
       );
+      await this.mail.sendWelcome(normalizedEmail, {
+        nombre: user.nombre ?? 'cliente',
+        clinica: clinica.nombre,
+        loginUrl: this.config.get<string>('FRONTEND_URL'),
+      });
     }
 
     const token = this.signToken(
@@ -289,6 +294,11 @@ export class AuthService {
             ROLES.CLIENTE,
             clinica.id_clinica,
           );
+          await this.mail.sendWelcome(normalizedEmail, {
+            nombre: user.nombre ?? 'cliente',
+            clinica: clinica.nombre,
+            loginUrl: this.config.get<string>('FRONTEND_URL'),
+          });
         }
       }
     }

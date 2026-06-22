@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CitasService } from './citas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { MailService } from '../mail/mail.service';
 import { ROLES } from '../common/constants/roles.constant';
 
 const mockPrisma = {
@@ -24,6 +25,13 @@ const mockPrisma = {
 const mockNotificaciones = {
   crearParaAdmins: jest.fn(),
   crearParaUsuario: jest.fn(),
+};
+
+const mockMail = {
+  sendAppointmentConfirmation: jest.fn(),
+  sendAppointmentReminder: jest.fn(),
+  sendAppointmentCancelled: jest.fn(),
+  sendWelcome: jest.fn(),
 };
 
 const adminUser = {
@@ -73,6 +81,7 @@ describe('CitasService', () => {
         CitasService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: NotificacionesService, useValue: mockNotificaciones },
+        { provide: MailService, useValue: mockMail },
       ],
     }).compile();
 

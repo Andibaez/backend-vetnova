@@ -193,6 +193,7 @@ model usuarios {
   password                 String           @db.VarChar(255)
   id_rol                   Int?
   id_clinica               Int?
+  email_verificado         Boolean          @default(true)
   citas                    citas[]
   consultas                consultas[]
   auditoria_consultas      auditoria_consultas[]

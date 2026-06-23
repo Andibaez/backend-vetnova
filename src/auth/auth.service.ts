@@ -16,12 +16,18 @@ import { randomBytes } from 'crypto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ROLES, RoleName } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 
 interface ResetTokenPayload {
   sub: number;
   type: 'reset';
+}
+
+interface VerifyEmailTokenPayload {
+  sub: number;
+  type: 'verify-email';
 }
 
 @Injectable()
@@ -79,6 +85,11 @@ export class AuthService {
         password: hashed,
         id_rol: rol.id_rol,
         id_clinica: clinica.id_clinica,
+        // El registro público con correo/contraseña no prueba que el
+        // correo le pertenezca a quien se registra — Google sí lo hace,
+        // por eso esas cuentas (ver googleAuth) quedan verificadas de
+        // inmediato y estas no.
+        email_verificado: false,
       },
       include: { roles: true },
     });
@@ -92,12 +103,6 @@ export class AuthService {
     );
 
     if (roleName === ROLES.CLIENTE) {
-      await this.notificaciones.crearParaUsuario(
-        user.id_usuario,
-        'Bienvenido a VetNova',
-        `Hola ${user.nombre}, tu cuenta fue creada correctamente en ${clinica.nombre}. ¡Gracias por registrarte!`,
-        'bienvenida',
-      );
       await this.notificaciones.crearParaAdmins(
         'Nuevo cliente registrado',
         `${user.nombre} (${normalizedEmail}) se registró como nuevo cliente.`,
@@ -107,32 +112,142 @@ export class AuthService {
         user.id_usuario,
         'usuario',
       );
-      await this.mail.sendWelcome(normalizedEmail, {
+    }
+
+    await this.sendVerificationEmail(user.id_usuario, normalizedEmail, user.nombre, clinica.nombre);
+
+    return {
+      requiresEmailVerification: true as const,
+      email: normalizedEmail,
+      avisoOtraClinica,
+    };
+  }
+
+  async verifyEmail(token: string) {
+    let unverified: VerifyEmailTokenPayload;
+    try {
+      unverified = this.jwt.decode(token);
+    } catch {
+      throw new UnauthorizedException(
+        'El enlace de confirmación es inválido o ha expirado.',
+      );
+    }
+
+    if (!unverified?.sub || unverified.type !== 'verify-email') {
+      throw new UnauthorizedException(
+        'El enlace de confirmación es inválido o ha expirado.',
+      );
+    }
+
+    try {
+      this.jwt.verify<VerifyEmailTokenPayload>(token, {
+        secret: this.verifyEmailSecret(unverified.sub),
+      });
+    } catch {
+      throw new UnauthorizedException(
+        'El enlace de confirmación es inválido o ha expirado.',
+      );
+    }
+
+    const user = await this.prisma.usuarios.update({
+      where: { id_usuario: unverified.sub },
+      data: { email_verificado: true },
+      include: {
+        roles: true,
+        clinicas: { select: { id_clinica: true, nombre: true } },
+      },
+    });
+
+    const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
+
+    if (roleName === ROLES.CLIENTE) {
+      await this.notificaciones.crearParaUsuario(
+        user.id_usuario,
+        'Bienvenido a VetNova',
+        `Hola ${user.nombre}, tu cuenta fue confirmada correctamente${
+          user.clinicas?.nombre ? ` en ${user.clinicas.nombre}` : ''
+        }. ¡Gracias por registrarte!`,
+        'bienvenida',
+      );
+      await this.mail.sendWelcome(user.email, {
         nombre: user.nombre ?? 'cliente',
-        clinica: clinica.nombre,
+        clinica: user.clinicas?.nombre,
         loginUrl: this.config.get<string>('FRONTEND_URL'),
       });
     }
 
-    const token = this.signToken(
+    const signedToken = this.signToken(
       user.id_usuario,
       user.nombre!,
-      normalizedEmail,
+      user.email,
       roleName,
-      clinica.id_clinica,
+      user.id_clinica,
     );
     return {
-      token,
+      token: signedToken,
       user: this.sanitize(
         user.id_usuario,
         user.nombre!,
-        normalizedEmail,
+        user.email,
         roleName,
-        clinica.id_clinica,
-        clinica.nombre,
+        user.id_clinica,
+        user.clinicas?.nombre,
       ),
-      avisoOtraClinica,
     };
+  }
+
+  async resendVerification(dto: ResendVerificationDto): Promise<{ message: string }> {
+    const normalizedEmail = dto.email.trim().toLowerCase();
+    const generic = {
+      message:
+        'Si la cuenta existe y aún no fue confirmada, recibirás un nuevo enlace de confirmación.',
+    };
+
+    const where = dto.clinicaSlug
+      ? { email: normalizedEmail, clinicas: { slug: dto.clinicaSlug.trim().toLowerCase() } }
+      : { email: normalizedEmail };
+
+    const user = await this.prisma.usuarios.findFirst({
+      where,
+      include: { clinicas: { select: { nombre: true } } },
+    });
+
+    if (!user || user.email_verificado) return generic;
+
+    await this.sendVerificationEmail(
+      user.id_usuario,
+      normalizedEmail,
+      user.nombre,
+      user.clinicas?.nombre,
+    );
+    return generic;
+  }
+
+  private async sendVerificationEmail(
+    userId: number,
+    email: string,
+    nombre: string | null,
+    clinicaNombre?: string | null,
+  ) {
+    const payload: VerifyEmailTokenPayload = { sub: userId, type: 'verify-email' };
+    const verifyToken = this.jwt.sign(payload, {
+      secret: this.verifyEmailSecret(userId),
+      expiresIn: '24h',
+    });
+    const frontendUrl =
+      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
+    const verifyLink = `${frontendUrl}/verificar-correo?token=${verifyToken}`;
+
+    await this.mail.sendVerifyEmail(email, {
+      nombre: nombre ?? 'cliente',
+      clinica: clinicaNombre,
+      verifyLink,
+    });
+  }
+
+  /** Secreto por usuario para que el enlace de confirmación no sea reutilizable entre cuentas. */
+  private verifyEmailSecret(userId: number) {
+    return this.config.get<string>('JWT_SECRET')! + ':verify-email:' + userId;
   }
 
   async login(dto: LoginDto) {
@@ -186,6 +301,12 @@ export class AuthService {
 
     const roleName = (user.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
     this.assertAuthenticatedClinic(user, roleName, dto.clinicaSlug);
+
+    if (!user.email_verificado) {
+      throw new UnauthorizedException(
+        'Debes confirmar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada o solicita un nuevo enlace.',
+      );
+    }
 
     // Crear perfil si por alguna razón no existe aún
     await this.ensureRoleProfile(

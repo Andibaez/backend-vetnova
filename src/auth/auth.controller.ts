@@ -10,6 +10,8 @@ import { LoginDto } from './dto/login.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtPayload } from '../common/types/jwt-payload.type';
@@ -29,13 +31,29 @@ export class AuthController {
   @Public()
   @Throttle({ global: { limit: 5, ttl: 60000 } })
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
+  async register(@Body() dto: RegisterDto) {
+    // El registro con correo/contraseña ya no inicia sesión de inmediato:
+    // primero hay que confirmar el correo (ver /auth/verify-email).
+    return this.authService.register(dto);
+  }
+
+  @Public()
+  @Throttle({ global: { limit: 10, ttl: 60000 } })
+  @Post('verify-email')
+  async verifyEmail(
+    @Body() dto: VerifyEmailDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { token, user, avisoOtraClinica } = await this.authService.register(dto);
+    const { token, user } = await this.authService.verifyEmail(dto.token);
     const csrfToken = this.setAuthCookies(res, token);
-    return { user, csrfToken, avisoOtraClinica };
+    return { user, csrfToken };
+  }
+
+  @Public()
+  @Throttle({ global: { limit: 3, ttl: 900000 } })
+  @Post('resend-verification')
+  resendVerification(@Body() dto: ResendVerificationDto) {
+    return this.authService.resendVerification(dto);
   }
 
   @Public()

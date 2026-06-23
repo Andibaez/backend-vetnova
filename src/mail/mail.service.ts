@@ -14,7 +14,8 @@ type TemplateName =
   | 'appointment-reminder'
   | 'appointment-cancelled'
   | 'welcome'
-  | 'admin-temp-password';
+  | 'admin-temp-password'
+  | 'verify-email';
 
 @Injectable()
 export class MailService {
@@ -144,6 +145,17 @@ export class MailService {
       'admin-temp-password',
       data,
     );
+  }
+
+  /**
+   * Envía el enlace de confirmación de correo al registrarse con
+   * contraseña (el login con Google ya viene verificado por Google).
+   */
+  async sendVerifyEmail(
+    to: string,
+    data: { nombre: string; clinica?: string | null; verifyLink: string },
+  ) {
+    await this.sendSafe(to, 'Confirma tu correo — VetNova', 'verify-email', data);
   }
 
   /**

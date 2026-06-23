@@ -14,6 +14,7 @@ import type { Response } from 'express';
 import { HistoriasClinicasService } from './historias-clinicas.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { UpdateConsultaDto } from './dto/update-consulta.dto';
+import { DeleteConsultaDto } from './dto/delete-consulta.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
@@ -64,6 +65,12 @@ export class HistoriasClinicasController {
   }
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
+  @Get('consultas/:id')
+  getConsulta(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+    return this.historiasService.getConsulta(id, user);
+  }
+
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Post('consultas')
   createConsulta(
     @Body() dto: CreateConsultaDto,
@@ -86,8 +93,18 @@ export class HistoriasClinicasController {
   @Delete('consultas/:id')
   removeConsulta(
     @Param('id', ParseIntPipe) id: number,
+    @Body() dto: DeleteConsultaDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.historiasService.removeConsulta(id, user);
+    return this.historiasService.removeConsulta(id, dto, user);
+  }
+
+  @Roles(ROLES.ADMIN)
+  @Get('consultas/:id/auditoria')
+  getConsultaAuditoria(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.historiasService.getConsultaAuditoria(id, user);
   }
 }

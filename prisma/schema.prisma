@@ -62,15 +62,36 @@ model citas {
 }
 
 model consultas {
-  id_consulta        Int                 @id @default(autoincrement())
-  fecha              DateTime?           @default(now()) @db.Timestamp(6)
-  motivo             String?
-  diagnostico        String?
-  tratamiento        String?
-  id_historia        Int?
-  id_usuario         Int?
-  historias_clinicas historias_clinicas? @relation(fields: [id_historia], references: [id_historia], onDelete: NoAction, onUpdate: NoAction)
-  usuarios           usuarios?           @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  id_consulta         Int                   @id @default(autoincrement())
+  fecha               DateTime?             @default(now()) @db.Timestamp(6)
+  motivo              String?
+  diagnostico         String?
+  tratamiento         String?
+  peso                Decimal?              @db.Decimal(5, 2)
+  temperatura         Decimal?              @db.Decimal(4, 1)
+  frecuencia_cardiaca Int?
+  recomendaciones     String?
+  id_historia         Int?
+  id_usuario          Int?
+  eliminada_at        DateTime?             @db.Timestamp(6)
+  historias_clinicas  historias_clinicas?   @relation(fields: [id_historia], references: [id_historia], onDelete: NoAction, onUpdate: NoAction)
+  usuarios            usuarios?             @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  auditoria_consultas auditoria_consultas[]
+}
+
+model auditoria_consultas {
+  id_auditoria     Int       @id @default(autoincrement())
+  id_consulta      Int
+  id_usuario       Int
+  accion           String    @db.VarChar(20)
+  motivo           String?
+  datos_anteriores Json
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+
+  consultas consultas @relation(fields: [id_consulta], references: [id_consulta], onDelete: Cascade, onUpdate: NoAction)
+  usuarios  usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_consulta])
 }
 
 model historias_clinicas {
@@ -174,6 +195,7 @@ model usuarios {
   id_clinica               Int?
   citas                    citas[]
   consultas                consultas[]
+  auditoria_consultas      auditoria_consultas[]
   notificaciones_recibidas notificaciones[] @relation("notificaciones_destino")
   notificaciones_enviadas  notificaciones[] @relation("notificaciones_origen")
   propietarios             propietarios?

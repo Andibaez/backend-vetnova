@@ -33,9 +33,9 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { token, user } = await this.authService.register(dto);
+    const { token, user, avisoOtraClinica } = await this.authService.register(dto);
     const csrfToken = this.setAuthCookies(res, token);
-    return { user, csrfToken };
+    return { user, csrfToken, avisoOtraClinica };
   }
 
   @Public()
@@ -61,7 +61,11 @@ export class AuthController {
     const result = await this.authService.googleAuth(dto);
     if (!result.token) return result;
     const csrfToken = this.setAuthCookies(res, result.token);
-    return { user: result.user, csrfToken };
+    return {
+      user: result.user,
+      csrfToken,
+      avisoOtraClinica: result.avisoOtraClinica,
+    };
   }
 
   @Public()

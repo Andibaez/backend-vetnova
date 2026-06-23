@@ -2,11 +2,13 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { UpdateConsultaDto } from './dto/update-consulta.dto';
+import { DeleteConsultaDto } from './dto/delete-consulta.dto';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
 
@@ -19,6 +21,7 @@ export interface TimelineEvent {
   descripcion: string | null;
   registradoPor?: string | null;
   proximaFecha?: Date | null;
+  idConsulta?: number;
 }
 
 @Injectable()
@@ -36,6 +39,7 @@ export class HistoriasClinicasService {
       where: { id_mascota },
       include: {
         consultas: {
+          where: { eliminada_at: null },
           include: { usuarios: { select: { nombre: true } } },
           orderBy: { fecha: 'desc' },
         },
@@ -62,6 +66,7 @@ export class HistoriasClinicasService {
         where: { id_mascota },
         include: {
           consultas: {
+            where: { eliminada_at: null },
             include: { usuarios: { select: { nombre: true } } },
             orderBy: { fecha: 'desc' },
           },
@@ -75,18 +80,34 @@ export class HistoriasClinicasService {
     ]);
 
     const eventosConsultas: TimelineEvent[] = (historia?.consultas ?? []).map(
-      (c) => ({
-        tipo: 'consulta',
-        fecha: c.fecha,
-        titulo: c.motivo || 'Consulta',
-        descripcion: [
-          c.diagnostico ? `Diagnóstico: ${c.diagnostico}` : null,
-          c.tratamiento ? `Tratamiento: ${c.tratamiento}` : null,
+      (c) => {
+        const signosVitales = [
+          c.peso != null ? `Peso: ${c.peso} kg` : null,
+          c.temperatura != null ? `Temp: ${c.temperatura}°C` : null,
+          c.frecuencia_cardiaca != null
+            ? `FC: ${c.frecuencia_cardiaca} lpm`
+            : null,
         ]
           .filter(Boolean)
-          .join(' · ') || null,
-        registradoPor: c.usuarios?.nombre ?? null,
-      }),
+          .join(' · ');
+
+        return {
+          tipo: 'consulta' as const,
+          fecha: c.fecha,
+          titulo: c.motivo || 'Consulta',
+          descripcion:
+            [
+              signosVitales || null,
+              c.diagnostico ? `Diagnóstico: ${c.diagnostico}` : null,
+              c.tratamiento ? `Tratamiento: ${c.tratamiento}` : null,
+              c.recomendaciones ? `Recomendaciones: ${c.recomendaciones}` : null,
+            ]
+              .filter(Boolean)
+              .join('\n') || null,
+          registradoPor: c.usuarios?.nombre ?? null,
+          idConsulta: c.id_consulta,
+        };
+      },
     );
 
     const eventosVacunas: TimelineEvent[] = vacunas.map((v) => ({
@@ -225,6 +246,10 @@ export class HistoriasClinicasService {
         motivo: dto.motivo,
         diagnostico: dto.diagnostico,
         tratamiento: dto.tratamiento,
+        peso: dto.peso,
+        temperatura: dto.temperatura,
+        frecuencia_cardiaca: dto.frecuencia_cardiaca,
+        recomendaciones: dto.recomendaciones,
         id_historia: historia.id_historia,
         id_usuario: user.sub,
       },
@@ -232,12 +257,35 @@ export class HistoriasClinicasService {
     });
   }
 
+  /**
+   * Devuelve una consulta con todos sus campos clínicos estructurados
+   * (no el `descripcion` combinado del timeline), usado para precargar
+   * el formulario de edición.
+   */
+  async getConsulta(id: number, user: JwtPayload) {
+    const consulta = await this.prisma.consultas.findUnique({
+      where: { id_consulta: id },
+      include: { historias_clinicas: { include: { mascotas: true } } },
+    });
+    if (!consulta || consulta.eliminada_at) {
+      throw new NotFoundException('Consulta no encontrada.');
+    }
+
+    const mascota = consulta.historias_clinicas?.mascotas;
+    if (!mascota) throw new NotFoundException('Mascota no encontrada.');
+    await this.assertMascotaAccess(mascota, user);
+
+    return consulta;
+  }
+
   async updateConsulta(id: number, dto: UpdateConsultaDto, user: JwtPayload) {
     const consulta = await this.prisma.consultas.findUnique({
       where: { id_consulta: id },
       include: { historias_clinicas: { include: { mascotas: true } } },
     });
-    if (!consulta) throw new NotFoundException('Consulta no encontrada.');
+    if (!consulta || consulta.eliminada_at) {
+      throw new NotFoundException('Consulta no encontrada.');
+    }
 
     const mascota = consulta.historias_clinicas?.mascotas;
     if (!mascota) throw new NotFoundException('Mascota no encontrada.');
@@ -249,23 +297,57 @@ export class HistoriasClinicasService {
       );
     }
 
-    return this.prisma.consultas.update({
-      where: { id_consulta: id },
-      data: {
-        ...(dto.motivo !== undefined && { motivo: dto.motivo }),
-        ...(dto.diagnostico !== undefined && { diagnostico: dto.diagnostico }),
-        ...(dto.tratamiento !== undefined && { tratamiento: dto.tratamiento }),
-      },
-      include: { usuarios: { select: { nombre: true } } },
+    this.assertMotivoAuditoria(consulta.id_usuario, dto.motivoAuditoria, user, 'editar');
+
+    const snapshot = this.snapshotConsulta(consulta);
+
+    return this.prisma.$transaction(async (tx) => {
+      const actualizada = await tx.consultas.update({
+        where: { id_consulta: id },
+        data: {
+          ...(dto.motivo !== undefined && { motivo: dto.motivo }),
+          ...(dto.diagnostico !== undefined && {
+            diagnostico: dto.diagnostico,
+          }),
+          ...(dto.tratamiento !== undefined && {
+            tratamiento: dto.tratamiento,
+          }),
+          ...(dto.peso !== undefined && { peso: dto.peso }),
+          ...(dto.temperatura !== undefined && {
+            temperatura: dto.temperatura,
+          }),
+          ...(dto.frecuencia_cardiaca !== undefined && {
+            frecuencia_cardiaca: dto.frecuencia_cardiaca,
+          }),
+          ...(dto.recomendaciones !== undefined && {
+            recomendaciones: dto.recomendaciones,
+          }),
+        },
+        include: { usuarios: { select: { nombre: true } } },
+      });
+
+      await tx.auditoria_consultas.create({
+        data: {
+          id_consulta: id,
+          id_usuario: user.sub,
+          accion: 'actualizacion',
+          motivo: dto.motivoAuditoria ?? null,
+          datos_anteriores: snapshot,
+        },
+      });
+
+      return actualizada;
     });
   }
 
-  async removeConsulta(id: number, user: JwtPayload) {
+  async removeConsulta(id: number, dto: DeleteConsultaDto, user: JwtPayload) {
     const consulta = await this.prisma.consultas.findUnique({
       where: { id_consulta: id },
       include: { historias_clinicas: { include: { mascotas: true } } },
     });
-    if (!consulta) throw new NotFoundException('Consulta no encontrada.');
+    if (!consulta || consulta.eliminada_at) {
+      throw new NotFoundException('Consulta no encontrada.');
+    }
 
     const mascota = consulta.historias_clinicas?.mascotas;
     if (!mascota) throw new NotFoundException('Mascota no encontrada.');
@@ -277,8 +359,95 @@ export class HistoriasClinicasService {
       );
     }
 
-    await this.prisma.consultas.delete({ where: { id_consulta: id } });
+    this.assertMotivoAuditoria(
+      consulta.id_usuario,
+      dto.motivoAuditoria,
+      user,
+      'eliminar',
+    );
+
+    const snapshot = this.snapshotConsulta(consulta);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.consultas.update({
+        where: { id_consulta: id },
+        data: { eliminada_at: new Date() },
+      });
+
+      await tx.auditoria_consultas.create({
+        data: {
+          id_consulta: id,
+          id_usuario: user.sub,
+          accion: 'eliminacion',
+          motivo: dto.motivoAuditoria ?? null,
+          datos_anteriores: snapshot,
+        },
+      });
+    });
+
     return { message: 'Consulta eliminada.' };
+  }
+
+  async getConsultaAuditoria(id_consulta: number, user: JwtPayload) {
+    const consulta = await this.prisma.consultas.findUnique({
+      where: { id_consulta },
+      include: { historias_clinicas: { include: { mascotas: true } } },
+    });
+    if (!consulta) throw new NotFoundException('Consulta no encontrada.');
+
+    const mascota = consulta.historias_clinicas?.mascotas;
+    if (!mascota) throw new NotFoundException('Mascota no encontrada.');
+    await this.assertMascotaAccess(mascota, user);
+
+    return this.prisma.auditoria_consultas.findMany({
+      where: { id_consulta },
+      include: { usuarios: { select: { nombre: true } } },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  /**
+   * Regla de negocio: editar/eliminar una consulta que NO fue registrada
+   * por el usuario actual exige una justificación (motivoAuditoria). En la
+   * práctica el único rol que puede llegar a este punto sin ser el autor es
+   * el Administrador (Veterinario ya es bloqueado por completo antes).
+   */
+  private assertMotivoAuditoria(
+    idAutorOriginal: number | null,
+    motivoAuditoria: string | undefined,
+    user: JwtPayload,
+    accion: 'editar' | 'eliminar',
+  ) {
+    const esAutorOriginal = idAutorOriginal === user.sub;
+    if (esAutorOriginal) return;
+
+    if (!motivoAuditoria || !motivoAuditoria.trim()) {
+      throw new BadRequestException(
+        accion === 'editar'
+          ? 'Debes justificar la edición de un registro clínico que no creaste.'
+          : 'Debes justificar la eliminación de un registro clínico que no creaste.',
+      );
+    }
+  }
+
+  private snapshotConsulta(consulta: {
+    motivo: string | null;
+    diagnostico: string | null;
+    tratamiento: string | null;
+    peso: unknown;
+    temperatura: unknown;
+    frecuencia_cardiaca: number | null;
+    recomendaciones: string | null;
+  }) {
+    return {
+      motivo: consulta.motivo,
+      diagnostico: consulta.diagnostico,
+      tratamiento: consulta.tratamiento,
+      peso: consulta.peso?.toString() ?? null,
+      temperatura: consulta.temperatura?.toString() ?? null,
+      frecuencia_cardiaca: consulta.frecuencia_cardiaca,
+      recomendaciones: consulta.recomendaciones,
+    };
   }
 
   private requireClinicaId(user?: JwtPayload) {

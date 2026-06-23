@@ -55,6 +55,20 @@ export class AuthService {
       );
     }
 
+    // No bloquea el registro: el mismo correo puede tener cuentas
+    // independientes en distintas clínicas (cada una con su propio
+    // historial), pero avisamos para que el cliente no se confunda.
+    const otraClinica = await this.prisma.usuarios.findFirst({
+      where: {
+        email: normalizedEmail,
+        id_clinica: { not: clinica.id_clinica },
+      },
+      include: { clinicas: { select: { nombre: true, slug: true } } },
+    });
+    const avisoOtraClinica = otraClinica?.clinicas
+      ? { nombre: otraClinica.clinicas.nombre, slug: otraClinica.clinicas.slug }
+      : undefined;
+
     const rol = await this.findOrCreateRole(roleName);
     const hashed = await bcrypt.hash(dto.password, 10);
 
@@ -117,6 +131,7 @@ export class AuthService {
         clinica.id_clinica,
         clinica.nombre,
       ),
+      avisoOtraClinica,
     };
   }
 
@@ -231,6 +246,11 @@ export class AuthService {
       ? candidates.find((c) => c.clinicas?.slug === dto.clinicaSlug)
       : undefined;
 
+    // No bloquea el login/registro: el mismo correo puede tener cuentas
+    // independientes en distintas clínicas, pero avisamos para que el
+    // cliente no se confunda pensando que es la misma cuenta.
+    let avisoOtraClinica: { nombre: string; slug: string } | undefined;
+
     if (!user) {
       if (candidates.length > 0 && !dto.clinicaSlug) {
         if (candidates.length === 1) {
@@ -266,6 +286,15 @@ export class AuthService {
         if (existingInClinic) {
           user = existingInClinic;
         } else {
+          // candidates ya viene filtrado por email a nivel global; si hay
+          // entradas aquí, son de otras clínicas (esta no tenía coincidencia).
+          if (candidates.length > 0 && candidates[0].clinicas) {
+            avisoOtraClinica = {
+              nombre: candidates[0].clinicas.nombre,
+              slug: candidates[0].clinicas.slug,
+            };
+          }
+
           const rol = await this.findOrCreateRole(ROLES.CLIENTE);
           user = await this.prisma.usuarios.create({
             data: {
@@ -322,6 +351,7 @@ export class AuthService {
         user.id_clinica,
         user.clinicas?.nombre,
       ),
+      avisoOtraClinica,
     };
   }
 

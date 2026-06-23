@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { HistoriasClinicasService } from './historias-clinicas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROLES } from '../common/constants/roles.constant';
@@ -16,9 +20,14 @@ const mockPrisma = {
     update: jest.fn(),
     delete: jest.fn(),
   },
+  auditoria_consultas: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+  },
   propietarios: { findUnique: jest.fn() },
   veterinarios: { findUnique: jest.fn() },
   citas: { findFirst: jest.fn() },
+  $transaction: jest.fn(),
 };
 
 const adminUser = {
@@ -57,6 +66,9 @@ describe('HistoriasClinicasService', () => {
 
     service = module.get<HistoriasClinicasService>(HistoriasClinicasService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((cb: (tx: any) => unknown) =>
+      cb(mockPrisma),
+    );
   });
 
   it('admin obtiene historia de mascota de su clínica', async () => {
@@ -72,6 +84,7 @@ describe('HistoriasClinicasService', () => {
       where: { id_mascota: 10 },
       include: {
         consultas: {
+          where: { eliminada_at: null },
           include: { usuarios: { select: { nombre: true } } },
           orderBy: { fecha: 'desc' },
         },
@@ -152,25 +165,111 @@ describe('HistoriasClinicasService', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('elimina consulta accesible', async () => {
+  it('elimina (soft-delete) consulta propia sin requerir motivo', async () => {
     mockPrisma.consultas.findUnique.mockResolvedValue({
       id_consulta: 11,
       id_usuario: 1,
+      eliminada_at: null,
+      motivo: 'Control',
+      diagnostico: null,
+      tratamiento: null,
+      peso: null,
+      temperatura: null,
+      frecuencia_cardiaca: null,
+      recomendaciones: null,
       historias_clinicas: { mascotas: mascota },
     });
-    mockPrisma.consultas.delete.mockResolvedValue({});
+    mockPrisma.consultas.update.mockResolvedValue({});
 
-    await service.removeConsulta(11, adminUser);
+    await service.removeConsulta(11, {}, adminUser);
 
-    expect(mockPrisma.consultas.delete).toHaveBeenCalledWith({
+    expect(mockPrisma.consultas.update).toHaveBeenCalledWith({
       where: { id_consulta: 11 },
+      data: { eliminada_at: expect.any(Date) },
     });
+    expect(mockPrisma.auditoria_consultas.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id_consulta: 11,
+        id_usuario: 1,
+        accion: 'eliminacion',
+        motivo: null,
+      }),
+    });
+  });
+
+  it('admin requiere motivoAuditoria para eliminar consulta de otro autor', async () => {
+    mockPrisma.consultas.findUnique.mockResolvedValue({
+      id_consulta: 11,
+      id_usuario: 99,
+      eliminada_at: null,
+      historias_clinicas: { mascotas: mascota },
+    });
+
+    await expect(service.removeConsulta(11, {}, adminUser)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('admin elimina consulta de otro autor cuando provee motivoAuditoria', async () => {
+    mockPrisma.consultas.findUnique.mockResolvedValue({
+      id_consulta: 11,
+      id_usuario: 99,
+      eliminada_at: null,
+      motivo: 'Control',
+      diagnostico: null,
+      tratamiento: null,
+      peso: null,
+      temperatura: null,
+      frecuencia_cardiaca: null,
+      recomendaciones: null,
+      historias_clinicas: { mascotas: mascota },
+    });
+    mockPrisma.consultas.update.mockResolvedValue({});
+
+    await service.removeConsulta(
+      11,
+      { motivoAuditoria: 'Error de registro detectado en auditoría' },
+      adminUser,
+    );
+
+    expect(mockPrisma.auditoria_consultas.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        accion: 'eliminacion',
+        motivo: 'Error de registro detectado en auditoría',
+      }),
+    });
+  });
+
+  it('admin requiere motivoAuditoria para editar consulta de otro autor', async () => {
+    mockPrisma.consultas.findUnique.mockResolvedValue({
+      id_consulta: 11,
+      id_usuario: 99,
+      eliminada_at: null,
+      historias_clinicas: { mascotas: mascota },
+    });
+
+    await expect(
+      service.updateConsulta(11, { diagnostico: 'Ok' }, adminUser),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('lanza NotFoundException si no existe consulta', async () => {
     mockPrisma.consultas.findUnique.mockResolvedValue(null);
 
-    await expect(service.removeConsulta(99, adminUser)).rejects.toThrow(
+    await expect(service.removeConsulta(99, {}, adminUser)).rejects.toThrow(
+      NotFoundException,
+    );
+  });
+
+  it('lanza NotFoundException si la consulta ya fue eliminada', async () => {
+    mockPrisma.consultas.findUnique.mockResolvedValue({
+      id_consulta: 11,
+      id_usuario: 1,
+      eliminada_at: new Date(),
+      historias_clinicas: { mascotas: mascota },
+    });
+
+    await expect(service.removeConsulta(11, {}, adminUser)).rejects.toThrow(
       NotFoundException,
     );
   });

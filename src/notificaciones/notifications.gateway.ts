@@ -10,6 +10,10 @@ import { Server, Socket } from 'socket.io';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { AUTH_COOKIE_NAME } from '../auth/constants/auth-cookies.constant';
 
+type AuthenticatedSocket = Omit<Socket, 'data'> & {
+  data: { user?: JwtPayload };
+};
+
 @WebSocketGateway({
   cors: {
     origin: process.env.ALLOWED_ORIGINS?.split(',') ?? [
@@ -28,7 +32,7 @@ export class NotificationsGateway
 
   constructor(private readonly jwt: JwtService) {}
 
-  handleConnection(client: Socket) {
+  handleConnection(client: AuthenticatedSocket) {
     const token = this.extractCookie(
       client.handshake.headers.cookie ?? '',
       AUTH_COOKIE_NAME,
@@ -46,7 +50,7 @@ export class NotificationsGateway
         throw new Error('Token de tipo reset no permitido.');
       }
       client.data.user = payload;
-      client.join(this.userRoom(payload.sub));
+      void client.join(this.userRoom(payload.sub));
       this.logger.log(
         `Usuario ${payload.sub} conectado (socket ${client.id}).`,
       );
@@ -56,8 +60,8 @@ export class NotificationsGateway
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const user = client.data?.user as JwtPayload | undefined;
+  handleDisconnect(client: AuthenticatedSocket) {
+    const user = client.data.user;
     if (user) {
       this.logger.log(
         `Usuario ${user.sub} desconectado (socket ${client.id}).`,

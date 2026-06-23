@@ -17,7 +17,11 @@ export function durationToMs(value: string, fallbackMs: number): number {
   return Number(match[1]) * DURATION_UNITS[match[2]];
 }
 
-export function setAuthCookie(res: Response, token: string, jwtExpiresIn: string): void {
+export function setAuthCookie(
+  res: Response,
+  token: string,
+  jwtExpiresIn: string,
+): void {
   res.cookie(AUTH_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',

@@ -268,5 +268,4 @@ export class UsuariosService {
       clinicaId: user.id_clinica,
     };
   }
-
 }

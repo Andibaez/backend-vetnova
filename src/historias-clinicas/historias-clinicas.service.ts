@@ -82,8 +82,8 @@ export class HistoriasClinicasService {
     const eventosConsultas: TimelineEvent[] = (historia?.consultas ?? []).map(
       (c) => {
         const signosVitales = [
-          c.peso != null ? `Peso: ${c.peso} kg` : null,
-          c.temperatura != null ? `Temp: ${c.temperatura}°C` : null,
+          c.peso != null ? `Peso: ${c.peso.toString()} kg` : null,
+          c.temperatura != null ? `Temp: ${c.temperatura.toString()}°C` : null,
           c.frecuencia_cardiaca != null
             ? `FC: ${c.frecuencia_cardiaca} lpm`
             : null,
@@ -100,7 +100,9 @@ export class HistoriasClinicasService {
               signosVitales || null,
               c.diagnostico ? `Diagnóstico: ${c.diagnostico}` : null,
               c.tratamiento ? `Tratamiento: ${c.tratamiento}` : null,
-              c.recomendaciones ? `Recomendaciones: ${c.recomendaciones}` : null,
+              c.recomendaciones
+                ? `Recomendaciones: ${c.recomendaciones}`
+                : null,
             ]
               .filter(Boolean)
               .join('\n') || null,
@@ -297,7 +299,12 @@ export class HistoriasClinicasService {
       );
     }
 
-    this.assertMotivoAuditoria(consulta.id_usuario, dto.motivoAuditoria, user, 'editar');
+    this.assertMotivoAuditoria(
+      consulta.id_usuario,
+      dto.motivoAuditoria,
+      user,
+      'editar',
+    );
 
     const snapshot = this.snapshotConsulta(consulta);
 

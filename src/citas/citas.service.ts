@@ -462,7 +462,11 @@ export class CitasService {
       'cita',
     );
 
-    if (estadoCambio && cita.estado === 'cancelada' && existing.usuarios?.email) {
+    if (
+      estadoCambio &&
+      cita.estado === 'cancelada' &&
+      existing.usuarios?.email
+    ) {
       await this.mail.sendAppointmentCancelled(existing.usuarios.email, {
         nombre: existing.usuarios.nombre ?? 'cliente',
         mascota: mascotaNombre,

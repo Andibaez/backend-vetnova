@@ -8,6 +8,21 @@ import { HistoriasClinicasService } from './historias-clinicas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROLES } from '../common/constants/roles.constant';
 
+interface AuditoriaCreateArgs {
+  data: {
+    id_consulta: number;
+    id_usuario: number;
+    accion: string;
+    motivo: string | null;
+    datos_anteriores: unknown;
+  };
+}
+
+interface ConsultaUpdateArgs {
+  where: { id_consulta: number };
+  data: { eliminada_at: Date };
+}
+
 const mockPrisma = {
   mascotas: { findUnique: jest.fn() },
   historias_clinicas: {
@@ -17,11 +32,11 @@ const mockPrisma = {
   consultas: {
     findUnique: jest.fn(),
     create: jest.fn(),
-    update: jest.fn(),
+    update: jest.fn<unknown, [ConsultaUpdateArgs]>(),
     delete: jest.fn(),
   },
   auditoria_consultas: {
-    create: jest.fn(),
+    create: jest.fn<unknown, [AuditoriaCreateArgs]>(),
     findMany: jest.fn(),
   },
   propietarios: { findUnique: jest.fn() },
@@ -183,17 +198,15 @@ describe('HistoriasClinicasService', () => {
 
     await service.removeConsulta(11, {}, adminUser);
 
-    expect(mockPrisma.consultas.update).toHaveBeenCalledWith({
-      where: { id_consulta: 11 },
-      data: { eliminada_at: expect.any(Date) },
-    });
-    expect(mockPrisma.auditoria_consultas.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        id_consulta: 11,
-        id_usuario: 1,
-        accion: 'eliminacion',
-        motivo: null,
-      }),
+    const updateCall = mockPrisma.consultas.update.mock.calls[0][0];
+    expect(updateCall.where).toEqual({ id_consulta: 11 });
+    expect(updateCall.data.eliminada_at).toBeInstanceOf(Date);
+    const auditCall = mockPrisma.auditoria_consultas.create.mock.calls[0][0];
+    expect(auditCall.data).toMatchObject({
+      id_consulta: 11,
+      id_usuario: 1,
+      accion: 'eliminacion',
+      motivo: null,
     });
   });
 
@@ -232,11 +245,10 @@ describe('HistoriasClinicasService', () => {
       adminUser,
     );
 
-    expect(mockPrisma.auditoria_consultas.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        accion: 'eliminacion',
-        motivo: 'Error de registro detectado en auditoría',
-      }),
+    const auditCall = mockPrisma.auditoria_consultas.create.mock.calls[0][0];
+    expect(auditCall.data).toMatchObject({
+      accion: 'eliminacion',
+      motivo: 'Error de registro detectado en auditoría',
     });
   });
 

@@ -14,12 +14,16 @@ jest.mock('google-auth-library', () => ({
   })),
 }));
 
+interface UsuarioCreateArgs {
+  data: { email_verificado: boolean };
+}
+
 const mockPrisma = {
   usuarios: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
-    create: jest.fn(),
+    create: jest.fn<unknown, [UsuarioCreateArgs]>(),
     update: jest.fn(),
   },
   roles: {
@@ -133,11 +137,8 @@ describe('AuthService', () => {
       });
 
       expect(result.requiresEmailVerification).toBe(true);
-      expect(mockPrisma.usuarios.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({ email_verificado: false }),
-        }),
-      );
+      const createCall = mockPrisma.usuarios.create.mock.calls[0][0];
+      expect(createCall.data).toMatchObject({ email_verificado: false });
       expect(mockPrisma.roles.findUnique).toHaveBeenCalledWith({
         where: { nombre: 'Cliente' },
       });

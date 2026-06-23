@@ -114,7 +114,12 @@ export class AuthService {
       );
     }
 
-    await this.sendVerificationEmail(user.id_usuario, normalizedEmail, user.nombre, clinica.nombre);
+    await this.sendVerificationEmail(
+      user.id_usuario,
+      normalizedEmail,
+      user.nombre,
+      clinica.nombre,
+    );
 
     return {
       requiresEmailVerification: true as const,
@@ -196,7 +201,9 @@ export class AuthService {
     };
   }
 
-  async resendVerification(dto: ResendVerificationDto): Promise<{ message: string }> {
+  async resendVerification(
+    dto: ResendVerificationDto,
+  ): Promise<{ message: string }> {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const generic = {
       message:
@@ -204,7 +211,10 @@ export class AuthService {
     };
 
     const where = dto.clinicaSlug
-      ? { email: normalizedEmail, clinicas: { slug: dto.clinicaSlug.trim().toLowerCase() } }
+      ? {
+          email: normalizedEmail,
+          clinicas: { slug: dto.clinicaSlug.trim().toLowerCase() },
+        }
       : { email: normalizedEmail };
 
     const user = await this.prisma.usuarios.findFirst({
@@ -229,7 +239,10 @@ export class AuthService {
     nombre: string | null,
     clinicaNombre?: string | null,
   ) {
-    const payload: VerifyEmailTokenPayload = { sub: userId, type: 'verify-email' };
+    const payload: VerifyEmailTokenPayload = {
+      sub: userId,
+      type: 'verify-email',
+    };
     const verifyToken = this.jwt.sign(payload, {
       secret: this.verifyEmailSecret(userId),
       expiresIn: '24h',

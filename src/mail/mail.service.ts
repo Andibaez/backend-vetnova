@@ -155,7 +155,12 @@ export class MailService {
     to: string,
     data: { nombre: string; clinica?: string | null; verifyLink: string },
   ) {
-    await this.sendSafe(to, 'Confirma tu correo — VetNova', 'verify-email', data);
+    await this.sendSafe(
+      to,
+      'Confirma tu correo — VetNova',
+      'verify-email',
+      data,
+    );
   }
 
   /**

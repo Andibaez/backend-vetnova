@@ -66,7 +66,10 @@ export class HistoriasClinicasController {
 
   @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
   @Get('consultas/:id')
-  getConsulta(@Param('id', ParseIntPipe) id: number, @CurrentUser() user: JwtPayload) {
+  getConsulta(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: JwtPayload,
+  ) {
     return this.historiasService.getConsulta(id, user);
   }
 

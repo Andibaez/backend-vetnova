@@ -221,7 +221,8 @@ export class ClinicasService {
     } else {
       // El usuario ya existe: solo se reasigna a esta clínica y se le otorga
       // el rol Administrador si no lo tenía.
-      newAdminNombre = newAdmin.nombre ?? newAdminNombre ?? newAdminEmail.split('@')[0];
+      newAdminNombre =
+        newAdmin.nombre ?? newAdminNombre ?? newAdminEmail.split('@')[0];
       newAdmin = await this.prisma.usuarios.update({
         where: { id_usuario: newAdmin.id_usuario },
         data: { id_clinica: clinicaId, id_rol: rolAdmin.id_rol },

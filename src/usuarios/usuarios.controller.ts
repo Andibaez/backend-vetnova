@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
   Query,
@@ -18,6 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { FindUsuariosDto } from './dto/find-usuarios.dto';
+import { CambiarClinicaDto } from './dto/cambiar-clinica.dto';
 
 @ApiCookieAuth('vetnova-token')
 @ApiTags('usuarios')
@@ -56,6 +58,15 @@ export class UsuariosController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.usuariosService.update(id, dto, user);
+  }
+
+  @Roles(ROLES.CLIENTE)
+  @Patch('cambiar-clinica')
+  cambiarClinica(
+    @Body() dto: CambiarClinicaDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.usuariosService.cambiarClinica(dto.clinicaSlug, user);
   }
 
   @Delete(':id')

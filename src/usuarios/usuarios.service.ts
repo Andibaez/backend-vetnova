@@ -224,6 +224,90 @@ export class UsuariosService {
     return { message: 'Usuario eliminado.' };
   }
 
+  async cambiarClinica(clinicaSlug: string, user: JwtPayload) {
+    const clinicaId = this.requireClinicaId(user);
+
+    const nuevaClinica = await this.prisma.clinicas.findUnique({
+      where: { slug: clinicaSlug },
+    });
+    if (!nuevaClinica || nuevaClinica.estado !== 'activa') {
+      throw new NotFoundException('Clínica no encontrada o inactiva.');
+    }
+    if (nuevaClinica.id_clinica === clinicaId) {
+      throw new BadRequestException('Ya perteneces a esta clínica.');
+    }
+
+    const emailConflicto = await this.prisma.usuarios.findFirst({
+      where: { email: user.email, id_clinica: nuevaClinica.id_clinica },
+    });
+    if (emailConflicto) {
+      throw new BadRequestException(
+        'Ya tienes una cuenta registrada en esa clínica.',
+      );
+    }
+
+    const propietario = await this.prisma.propietarios.findUnique({
+      where: { id_usuario: user.sub },
+      include: { mascotas: true },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      const mascotaIds = propietario?.mascotas.map((m) => m.id_mascota) ?? [];
+
+      if (mascotaIds.length > 0) {
+        await tx.citas.updateMany({
+          where: {
+            id_mascota: { in: mascotaIds },
+            estado: 'pendiente',
+            fecha: { gte: new Date() },
+          },
+          data: { estado: 'cancelada' },
+        });
+      }
+
+      await tx.citas.updateMany({
+        where: {
+          id_usuario: user.sub,
+          estado: 'pendiente',
+          fecha: { gte: new Date() },
+        },
+        data: { estado: 'cancelada' },
+      });
+
+      if (mascotaIds.length > 0) {
+        await tx.mascotas.updateMany({
+          where: { id_mascota: { in: mascotaIds } },
+          data: { id_clinica: nuevaClinica.id_clinica },
+        });
+      }
+
+      if (propietario) {
+        await tx.propietarios.update({
+          where: { id_propietario: propietario.id_propietario },
+          data: { id_clinica: nuevaClinica.id_clinica },
+        });
+      }
+
+      await tx.usuarios.update({
+        where: { id_usuario: user.sub },
+        data: { id_clinica: nuevaClinica.id_clinica },
+      });
+    });
+
+    await this.notificaciones.crearParaUsuario(
+      user.sub,
+      'Clínica actualizada',
+      `Tu cuenta fue trasladada a ${nuevaClinica.nombre}. Tus citas pendientes fueron canceladas.`,
+      'clinica_cambiada',
+    );
+
+    return {
+      message: 'Clínica actualizada correctamente.',
+      clinicaId: nuevaClinica.id_clinica,
+      clinicaNombre: nuevaClinica.nombre,
+    };
+  }
+
   private async findOrCreateRole(nombre: string) {
     let rol = await this.prisma.roles.findUnique({ where: { nombre } });
     if (!rol) rol = await this.prisma.roles.create({ data: { nombre } });

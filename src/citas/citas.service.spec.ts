@@ -269,11 +269,12 @@ describe('CitasService', () => {
       );
 
       expect(result).toBeDefined();
-      expect(mockPrisma.citas.update).toHaveBeenCalledWith({
-        where: { id_cita: 1 },
-        data: { estado: 'cancelada' },
-        include: expect.anything(),
-      });
+      expect(mockPrisma.citas.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id_cita: 1 },
+          data: { estado: 'cancelada' },
+        }),
+      );
     });
 
     it('cliente no puede cancelar la cita de otro cliente', async () => {

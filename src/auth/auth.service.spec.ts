@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -18,6 +23,21 @@ interface UsuarioCreateArgs {
   data: { email_verificado: boolean };
 }
 
+interface MascotaUpdateArgs {
+  where: { id_mascota: number };
+  data: { id_clinica: number; resumen_clinicas_anteriores: unknown };
+}
+
+interface ConsultasUpdateManyArgs {
+  where: { id_historia: number; eliminada_at: null };
+  data: { archivada_por_migracion: boolean };
+}
+
+interface RegistroVacunasUpdateManyArgs {
+  where: { id_mascota: number };
+  data: { archivada_por_migracion: boolean };
+}
+
 const mockPrisma = {
   usuarios: {
     findUnique: jest.fn(),
@@ -33,6 +53,7 @@ const mockPrisma = {
   propietarios: {
     findUnique: jest.fn(),
     create: jest.fn(),
+    update: jest.fn(),
   },
   veterinarios: {
     findUnique: jest.fn(),
@@ -41,6 +62,17 @@ const mockPrisma = {
   clinicas: {
     findUnique: jest.fn(),
   },
+  mascotas: {
+    findMany: jest.fn(),
+    update: jest.fn<unknown, [MascotaUpdateArgs]>(),
+  },
+  consultas: {
+    updateMany: jest.fn<unknown, [ConsultasUpdateManyArgs]>(),
+  },
+  registro_vacunas: {
+    updateMany: jest.fn<unknown, [RegistroVacunasUpdateManyArgs]>(),
+  },
+  $transaction: jest.fn(),
 };
 
 const clinicaTest = {
@@ -92,6 +124,9 @@ describe('AuthService', () => {
 
     service = module.get<AuthService>(AuthService);
     jest.clearAllMocks();
+    mockPrisma.$transaction.mockImplementation((cb: (tx: unknown) => unknown) =>
+      cb(mockPrisma),
+    );
   });
 
   // ── register ────────────────────────────────────────────────
@@ -289,6 +324,112 @@ describe('AuthService', () => {
 
       expect(result.token).toBe('mock.jwt.token');
       expect(result.user.email).toBe('a@b.com');
+    });
+  });
+
+  // ── cambiarClinica ───────────────────────────────────────────
+
+  describe('cambiarClinica', () => {
+    const clienteActual = {
+      id_usuario: 1,
+      nombre: 'Test',
+      email: 'a@b.com',
+      id_clinica: 1,
+      roles: { nombre: 'Cliente' },
+      propietarios: { id_propietario: 7, id_clinica: 1 },
+    };
+    const clinicaDestino = {
+      id_clinica: 2,
+      nombre: 'Clínica Destino',
+      slug: 'destino',
+      estado: 'activa',
+    };
+
+    it('lanza ForbiddenException si el usuario no es Cliente', async () => {
+      mockPrisma.usuarios.findUnique.mockResolvedValue({
+        ...clienteActual,
+        roles: { nombre: 'Administrador' },
+      });
+
+      await expect(service.cambiarClinica(1, 'destino')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('lanza BadRequestException si no tiene perfil de propietario', async () => {
+      mockPrisma.usuarios.findUnique.mockResolvedValue({
+        ...clienteActual,
+        propietarios: null,
+      });
+
+      await expect(service.cambiarClinica(1, 'destino')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('lanza BadRequestException si ya pertenece a esa clínica', async () => {
+      mockPrisma.usuarios.findUnique.mockResolvedValue(clienteActual);
+      mockPrisma.clinicas.findUnique.mockResolvedValue({
+        ...clinicaDestino,
+        id_clinica: 1,
+      });
+
+      await expect(service.cambiarClinica(1, 'destino')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('lanza ConflictException si ya existe una cuenta con ese correo en la clínica destino', async () => {
+      mockPrisma.usuarios.findUnique.mockResolvedValue(clienteActual);
+      mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaDestino);
+      mockPrisma.usuarios.findFirst.mockResolvedValue({ id_usuario: 99 });
+
+      await expect(service.cambiarClinica(1, 'destino')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('migra usuario, propietario y mascotas a la clínica destino', async () => {
+      mockPrisma.usuarios.findUnique.mockResolvedValue(clienteActual);
+      mockPrisma.clinicas.findUnique
+        .mockResolvedValueOnce(clinicaDestino) // resolveClinicaBySlug
+        .mockResolvedValueOnce({ nombre: 'Clínica Origen' }); // clínica origen para el resumen
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
+      mockPrisma.mascotas.findMany.mockResolvedValue([
+        {
+          id_mascota: 10,
+          especie: 'Perro',
+          raza: 'Labrador',
+          peso: { toString: () => '12.50' },
+          resumen_clinicas_anteriores: null,
+          historias_clinicas: { id_historia: 5, consultas: [] },
+          registro_vacunas: [],
+        },
+      ]);
+
+      const result = await service.cambiarClinica(1, 'destino');
+
+      const mascotaUpdateArgs = mockPrisma.mascotas.update.mock.calls[0][0];
+      expect(mascotaUpdateArgs.where).toEqual({ id_mascota: 10 });
+      expect(mascotaUpdateArgs.data.id_clinica).toBe(2);
+      expect(mockPrisma.consultas.updateMany).toHaveBeenCalledWith({
+        where: { id_historia: 5, eliminada_at: null },
+        data: { archivada_por_migracion: true },
+      });
+      expect(mockPrisma.registro_vacunas.updateMany).toHaveBeenCalledWith({
+        where: { id_mascota: 10 },
+        data: { archivada_por_migracion: true },
+      });
+      expect(mockPrisma.propietarios.update).toHaveBeenCalledWith({
+        where: { id_propietario: 7 },
+        data: { id_clinica: 2 },
+      });
+      expect(mockPrisma.usuarios.update).toHaveBeenCalledWith({
+        where: { id_usuario: 1 },
+        data: { id_clinica: 2 },
+      });
+      expect(result.token).toBe('mock.jwt.token');
+      expect(result.user.clinicaId).toBe(2);
     });
   });
 

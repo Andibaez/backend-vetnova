@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -507,6 +508,162 @@ export class AuthService {
       user.id_clinica,
       user.clinicas?.nombre,
     );
+  }
+
+  /**
+   * Migra a un cliente a otra clínica sin re-registro: actualiza usuario,
+   * propietario y mascotas a la nueva clínica. El historial detallado
+   * (consultas/vacunas) de la clínica anterior queda archivado —no se
+   * borra— para que el cliente siga viéndolo completo desde su perfil,
+   * pero el personal de la clínica nueva solo recibe un resumen.
+   */
+  async cambiarClinica(userId: number, clinicaSlug: string) {
+    const usuario = await this.prisma.usuarios.findUnique({
+      where: { id_usuario: userId },
+      include: { roles: true, propietarios: true },
+    });
+    if (!usuario) throw new NotFoundException('Usuario no encontrado.');
+
+    const roleName = (usuario.roles?.nombre ?? ROLES.CLIENTE) as RoleName;
+    if (roleName !== ROLES.CLIENTE) {
+      throw new ForbiddenException(
+        'Solo los clientes pueden cambiar de clínica.',
+      );
+    }
+
+    const propietario = usuario.propietarios;
+    if (!propietario) {
+      throw new BadRequestException('No tienes un perfil de cliente asociado.');
+    }
+
+    const clinicaDestino = await this.resolveClinicaBySlug(clinicaSlug);
+    if (clinicaDestino.id_clinica === usuario.id_clinica) {
+      throw new BadRequestException('Ya perteneces a esta clínica.');
+    }
+
+    const cuentaExistente = await this.prisma.usuarios.findFirst({
+      where: {
+        email: usuario.email,
+        id_clinica: clinicaDestino.id_clinica,
+        id_usuario: { not: usuario.id_usuario },
+      },
+    });
+    if (cuentaExistente) {
+      throw new ConflictException(
+        'Ya tienes una cuenta con este correo en esa clínica. Inicia sesión con esa cuenta en lugar de migrar.',
+      );
+    }
+
+    const clinicaOrigen = usuario.id_clinica
+      ? await this.prisma.clinicas.findUnique({
+          where: { id_clinica: usuario.id_clinica },
+          select: { nombre: true },
+        })
+      : null;
+
+    const mascotas = await this.prisma.mascotas.findMany({
+      where: { id_propietario: propietario.id_propietario },
+      include: {
+        historias_clinicas: {
+          include: {
+            consultas: {
+              where: { eliminada_at: null, archivada_por_migracion: false },
+              orderBy: { fecha: 'desc' },
+              take: 1,
+            },
+          },
+        },
+        registro_vacunas: {
+          where: { archivada_por_migracion: false },
+          include: { vacunas: { select: { nombre: true } } },
+          orderBy: { fecha: 'desc' },
+        },
+      },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const mascota of mascotas) {
+        const ultimaConsulta = mascota.historias_clinicas?.consultas[0];
+        const resumen = {
+          clinicaAnteriorNombre: clinicaOrigen?.nombre ?? null,
+          fecha: new Date().toISOString(),
+          especie: mascota.especie,
+          raza: mascota.raza,
+          peso: mascota.peso?.toString() ?? null,
+          ultimaConsulta: ultimaConsulta
+            ? {
+                fecha: ultimaConsulta.fecha,
+                peso: ultimaConsulta.peso?.toString() ?? null,
+                temperatura: ultimaConsulta.temperatura?.toString() ?? null,
+                diagnostico: ultimaConsulta.diagnostico,
+                recomendaciones: ultimaConsulta.recomendaciones,
+              }
+            : null,
+          vacunas: mascota.registro_vacunas.map((v) => ({
+            nombre: v.vacunas?.nombre ?? null,
+            fecha: v.fecha,
+            proximaFecha: v.proxima_fecha,
+          })),
+        };
+
+        const historialPrevio = Array.isArray(
+          mascota.resumen_clinicas_anteriores,
+        )
+          ? (mascota.resumen_clinicas_anteriores as object[])
+          : [];
+
+        if (mascota.historias_clinicas) {
+          await tx.consultas.updateMany({
+            where: {
+              id_historia: mascota.historias_clinicas.id_historia,
+              eliminada_at: null,
+            },
+            data: { archivada_por_migracion: true },
+          });
+        }
+        await tx.registro_vacunas.updateMany({
+          where: { id_mascota: mascota.id_mascota },
+          data: { archivada_por_migracion: true },
+        });
+        await tx.mascotas.update({
+          where: { id_mascota: mascota.id_mascota },
+          data: {
+            id_clinica: clinicaDestino.id_clinica,
+            resumen_clinicas_anteriores: [...historialPrevio, resumen],
+          },
+        });
+      }
+
+      await tx.propietarios.update({
+        where: { id_propietario: propietario.id_propietario },
+        data: { id_clinica: clinicaDestino.id_clinica },
+      });
+
+      await tx.usuarios.update({
+        where: { id_usuario: usuario.id_usuario },
+        data: { id_clinica: clinicaDestino.id_clinica },
+      });
+    });
+
+    const token = this.signToken(
+      usuario.id_usuario,
+      usuario.nombre!,
+      usuario.email,
+      roleName,
+      clinicaDestino.id_clinica,
+    );
+
+    return {
+      token,
+      user: this.sanitize(
+        usuario.id_usuario,
+        usuario.nombre!,
+        usuario.email,
+        roleName,
+        clinicaDestino.id_clinica,
+        clinicaDestino.nombre,
+      ),
+    };
   }
 
   /**

@@ -12,6 +12,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
+import { CambiarClinicaDto } from './dto/cambiar-clinica.dto';
 import { Public } from './decorators/public.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { JwtPayload } from '../common/types/jwt-payload.type';
@@ -119,6 +120,22 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: JwtPayload) {
     return this.authService.me(user.sub);
+  }
+
+  @ApiCookieAuth('vetnova-token')
+  @Throttle({ global: { limit: 5, ttl: 60000 } })
+  @Post('cambiar-clinica')
+  async cambiarClinica(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: CambiarClinicaDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.cambiarClinica(
+      user.sub,
+      dto.clinicaSlug,
+    );
+    const csrfToken = this.setAuthCookies(res, result.token);
+    return { user: result.user, csrfToken };
   }
 
   private setAuthCookies(res: Response, token: string) {

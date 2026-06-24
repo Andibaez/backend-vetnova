@@ -75,6 +75,7 @@ model consultas {
   id_historia         Int?
   id_usuario          Int?
   eliminada_at        DateTime?             @db.Timestamp(6)
+  archivada_por_migracion Boolean           @default(false)
   historias_clinicas  historias_clinicas?   @relation(fields: [id_historia], references: [id_historia], onDelete: NoAction, onUpdate: NoAction)
   usuarios            usuarios?             @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
   auditoria_consultas auditoria_consultas[]
@@ -115,6 +116,7 @@ model mascotas {
   foto               String?
   sexo               String?             @db.VarChar(20)
   id_clinica         Int
+  resumen_clinicas_anteriores Json?
   citas              citas[]
   historias_clinicas historias_clinicas?
   clinicas           clinicas            @relation(fields: [id_clinica], references: [id_clinica])
@@ -237,6 +239,7 @@ model registro_vacunas {
   proxima_fecha DateTime? @db.Date
   id_mascota    Int?
   id_vacuna     Int?
+  archivada_por_migracion Boolean @default(false)
   mascotas      mascotas? @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
   vacunas       vacunas?  @relation(fields: [id_vacuna], references: [id_vacuna], onDelete: NoAction, onUpdate: NoAction)
 }

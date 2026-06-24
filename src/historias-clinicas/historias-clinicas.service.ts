@@ -39,7 +39,7 @@ export class HistoriasClinicasService {
       where: { id_mascota },
       include: {
         consultas: {
-          where: { eliminada_at: null },
+          where: this.consultasVisibleWhere(user),
           include: { usuarios: { select: { nombre: true } } },
           orderBy: { fecha: 'desc' },
         },
@@ -47,6 +47,21 @@ export class HistoriasClinicasService {
     });
 
     return historia ?? { id_mascota, consultas: [] };
+  }
+
+  /**
+   * El cliente (dueño) siempre ve su historial completo, incluido lo
+   * archivado por un cambio de clínica. El personal de la clínica
+   * (veterinario/admin) solo ve lo no archivado.
+   */
+  private consultasVisibleWhere(user: JwtPayload) {
+    if (user.role === ROLES.CLIENTE) return { eliminada_at: null };
+    return { eliminada_at: null, archivada_por_migracion: false };
+  }
+
+  private vacunasVisibleWhere(user: JwtPayload, id_mascota: number) {
+    if (user.role === ROLES.CLIENTE) return { id_mascota };
+    return { id_mascota, archivada_por_migracion: false };
   }
 
   /**
@@ -66,14 +81,14 @@ export class HistoriasClinicasService {
         where: { id_mascota },
         include: {
           consultas: {
-            where: { eliminada_at: null },
+            where: this.consultasVisibleWhere(user),
             include: { usuarios: { select: { nombre: true } } },
             orderBy: { fecha: 'desc' },
           },
         },
       }),
       this.prisma.registro_vacunas.findMany({
-        where: { id_mascota },
+        where: this.vacunasVisibleWhere(user, id_mascota),
         include: { vacunas: { select: { nombre: true } } },
         orderBy: { fecha: 'desc' },
       }),
@@ -243,6 +258,12 @@ export class HistoriasClinicasService {
       });
     }
 
+    // Si quien registra ya no es la clínica actual de la mascota (acceso
+    // "legado" por una cita previa a que el cliente migrara de clínica),
+    // la consulta queda archivada de entrada: el cliente la ve en su
+    // historial, pero no se filtra al personal de la clínica nueva.
+    const esEscrituraLegada = mascota.id_clinica !== user.clinicaId;
+
     return this.prisma.consultas.create({
       data: {
         motivo: dto.motivo,
@@ -254,6 +275,7 @@ export class HistoriasClinicasService {
         recomendaciones: dto.recomendaciones,
         id_historia: historia.id_historia,
         id_usuario: user.sub,
+        archivada_por_migracion: esEscrituraLegada,
       },
       include: { usuarios: { select: { nombre: true } } },
     });
@@ -473,48 +495,82 @@ export class HistoriasClinicasService {
     user: JwtPayload,
   ) {
     const clinicaId = this.requireClinicaId(user);
-    if (mascota.id_clinica !== clinicaId) {
-      throw new ForbiddenException(
-        'No tienes permiso para acceder a esta historia clínica.',
-      );
-    }
 
-    if (user.role === ROLES.CLIENTE) {
-      const prop = await this.prisma.propietarios.findUnique({
-        where: { id_usuario: user.sub },
-      });
-      if (
-        !prop ||
-        prop.id_clinica !== clinicaId ||
-        mascota.id_propietario !== prop.id_propietario
-      ) {
-        throw new ForbiddenException(
-          'No tienes permiso para acceder a esta historia clínica.',
+    if (mascota.id_clinica === clinicaId) {
+      if (user.role === ROLES.CLIENTE) {
+        const prop = await this.prisma.propietarios.findUnique({
+          where: { id_usuario: user.sub },
+        });
+        if (
+          !prop ||
+          prop.id_clinica !== clinicaId ||
+          mascota.id_propietario !== prop.id_propietario
+        ) {
+          throw new ForbiddenException(
+            'No tienes permiso para acceder a esta historia clínica.',
+          );
+        }
+        return;
+      }
+
+      if (user.role === ROLES.VETERINARIO) {
+        await this.assertVeterinarioAsignado(
+          mascota.id_mascota,
+          clinicaId,
+          user,
         );
       }
       return;
     }
 
-    if (user.role === ROLES.VETERINARIO) {
-      const vet = await this.prisma.veterinarios.findUnique({
-        where: { id_usuario: user.sub },
-      });
-      if (!vet)
-        throw new ForbiddenException('No tienes un perfil de veterinario.');
+    // La mascota ya no pertenece a esta clínica (el cliente migró a otra).
+    // Solo se permite el acceso "legado" si esta clínica tiene una cita con
+    // esa mascota — p. ej. una cita que ya estaba pendiente antes de migrar
+    // y que el veterinario aún debe poder atender y documentar.
+    if (user.role === ROLES.CLIENTE) {
+      throw new ForbiddenException(
+        'No tienes permiso para acceder a esta historia clínica.',
+      );
+    }
 
-      const asignada = await this.prisma.citas.findFirst({
-        where: {
-          id_mascota: mascota.id_mascota,
-          id_veterinario: vet.id_veterinario,
-          id_clinica: clinicaId,
-        },
-        select: { id_cita: true },
-      });
-      if (!asignada) {
-        throw new ForbiddenException(
-          'Solo puedes acceder a pacientes asignados a ti.',
-        );
-      }
+    const citaVinculada = await this.prisma.citas.findFirst({
+      where: { id_mascota: mascota.id_mascota, id_clinica: clinicaId },
+      select: { id_cita: true },
+    });
+    if (!citaVinculada) {
+      throw new ForbiddenException(
+        'No tienes permiso para acceder a esta historia clínica.',
+      );
+    }
+
+    if (user.role === ROLES.VETERINARIO) {
+      await this.assertVeterinarioAsignado(mascota.id_mascota, clinicaId, user);
+    }
+  }
+
+  private async assertVeterinarioAsignado(
+    id_mascota: number,
+    clinicaId: number,
+    user: JwtPayload,
+  ) {
+    const vet = await this.prisma.veterinarios.findUnique({
+      where: { id_usuario: user.sub },
+    });
+    if (!vet)
+      throw new ForbiddenException('No tienes un perfil de veterinario.');
+
+    const asignada = await this.prisma.citas.findFirst({
+      where: {
+        id_mascota,
+        id_veterinario: vet.id_veterinario,
+        id_clinica: clinicaId,
+      },
+      select: { id_cita: true },
+    });
+    if (!asignada) {
+      throw new ForbiddenException(
+        'Solo puedes acceder a pacientes asignados a ti.',
+      );
     }
   }
 }

@@ -23,6 +23,10 @@ interface ConsultaUpdateArgs {
   data: { eliminada_at: Date };
 }
 
+interface ConsultaCreateArgs {
+  data: { archivada_por_migracion: boolean };
+}
+
 const mockPrisma = {
   mascotas: { findUnique: jest.fn() },
   historias_clinicas: {
@@ -31,7 +35,7 @@ const mockPrisma = {
   },
   consultas: {
     findUnique: jest.fn(),
-    create: jest.fn(),
+    create: jest.fn<unknown, [ConsultaCreateArgs]>(),
     update: jest.fn<unknown, [ConsultaUpdateArgs]>(),
     delete: jest.fn(),
   },
@@ -99,7 +103,7 @@ describe('HistoriasClinicasService', () => {
       where: { id_mascota: 10 },
       include: {
         consultas: {
-          where: { eliminada_at: null },
+          where: { eliminada_at: null, archivada_por_migracion: false },
           include: { usuarios: { select: { nombre: true } } },
           orderBy: { fecha: 'desc' },
         },
@@ -140,11 +144,88 @@ describe('HistoriasClinicasService', () => {
     );
   });
 
+  describe('acceso legado tras migrar de clínica', () => {
+    // La mascota ya pertenece a otra clínica (clinicaId 2), distinta de la
+    // del usuario que pregunta (clinicaId 1) — simula a la clínica anterior
+    // intentando atender una cita que ya tenía agendada.
+    const mascotaMigrada = { ...mascota, id_clinica: 2 };
+
+    it('admin de la clínica anterior accede si tiene una cita vinculada', async () => {
+      mockPrisma.mascotas.findUnique.mockResolvedValue(mascotaMigrada);
+      mockPrisma.historias_clinicas.findUnique.mockResolvedValue({
+        id_historia: 5,
+        consultas: [],
+      });
+      mockPrisma.citas.findFirst.mockResolvedValue({ id_cita: 99 });
+
+      await expect(service.findByMascota(10, adminUser)).resolves.toBeDefined();
+      expect(mockPrisma.citas.findFirst).toHaveBeenCalledWith({
+        where: { id_mascota: 10, id_clinica: 1 },
+        select: { id_cita: true },
+      });
+    });
+
+    it('admin de la clínica anterior es rechazado sin cita vinculada', async () => {
+      mockPrisma.mascotas.findUnique.mockResolvedValue(mascotaMigrada);
+      mockPrisma.citas.findFirst.mockResolvedValue(null);
+
+      await expect(service.findByMascota(10, adminUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('cliente nunca accede por la vía legada, aunque haya una cita', async () => {
+      mockPrisma.mascotas.findUnique.mockResolvedValue(mascotaMigrada);
+      mockPrisma.citas.findFirst.mockResolvedValue({ id_cita: 99 });
+
+      await expect(service.findByMascota(10, clienteUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('veterinario de la clínica anterior necesita estar asignado a la cita', async () => {
+      mockPrisma.mascotas.findUnique.mockResolvedValue(mascotaMigrada);
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 8,
+      });
+      // Primera llamada: hay una cita vinculada a la clínica (acceso legado válido).
+      // Segunda llamada: ninguna cita asignada a este veterinario en particular.
+      mockPrisma.citas.findFirst
+        .mockResolvedValueOnce({ id_cita: 99 })
+        .mockResolvedValueOnce(null);
+
+      await expect(service.findByMascota(10, vetUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('crea la consulta archivada de entrada cuando se escribe desde la clínica anterior', async () => {
+      mockPrisma.mascotas.findUnique.mockResolvedValue(mascotaMigrada);
+      mockPrisma.citas.findFirst.mockResolvedValue({ id_cita: 99 });
+      mockPrisma.historias_clinicas.findUnique.mockResolvedValue({
+        id_historia: 5,
+      });
+      (mockPrisma.consultas.create as jest.Mock).mockResolvedValue({
+        id_consulta: 12,
+      });
+
+      await service.createConsulta(
+        { id_mascota: 10, motivo: 'Control' },
+        adminUser,
+      );
+
+      const createArgs = mockPrisma.consultas.create.mock.calls[0][0];
+      expect(createArgs.data.archivada_por_migracion).toBe(true);
+    });
+  });
+
   it('crea historia si no existe antes de crear consulta', async () => {
     mockPrisma.mascotas.findUnique.mockResolvedValue(mascota);
     mockPrisma.historias_clinicas.findUnique.mockResolvedValue(null);
     mockPrisma.historias_clinicas.create.mockResolvedValue({ id_historia: 5 });
-    mockPrisma.consultas.create.mockResolvedValue({ id_consulta: 11 });
+    (mockPrisma.consultas.create as jest.Mock).mockResolvedValue({
+      id_consulta: 11,
+    });
 
     await service.createConsulta(
       { id_mascota: 10, motivo: 'Control' },
@@ -156,10 +237,15 @@ describe('HistoriasClinicasService', () => {
     });
     expect(mockPrisma.consultas.create).toHaveBeenCalledWith({
       data: {
+        archivada_por_migracion: false,
         diagnostico: undefined,
+        frecuencia_cardiaca: undefined,
         id_historia: 5,
         id_usuario: 1,
         motivo: 'Control',
+        peso: undefined,
+        recomendaciones: undefined,
+        temperatura: undefined,
         tratamiento: undefined,
       },
       include: { usuarios: { select: { nombre: true } } },

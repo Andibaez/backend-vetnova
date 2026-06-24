@@ -25,6 +25,23 @@ model clinicas {
   propietarios propietarios[]
   servicios    servicios[]
   usuarios     usuarios[]
+  admin_history admin_history[]
+}
+
+model admin_history {
+  id                Int       @id @default(autoincrement())
+  clinica_id        Int
+  previous_admin_id Int?
+  new_admin_id      Int
+  changed_by        Int
+  changed_at        DateTime  @default(now()) @db.Timestamp(6)
+
+  clinicas      clinicas @relation(fields: [clinica_id], references: [id_clinica], onDelete: Cascade)
+  previous_admin usuarios? @relation("admin_history_previous_admin", fields: [previous_admin_id], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  new_admin     usuarios  @relation("admin_history_new_admin", fields: [new_admin_id], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  changed_by_usuario usuarios @relation("admin_history_changed_by", fields: [changed_by], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([clinica_id])
 }
 
 model citas {
@@ -38,6 +55,7 @@ model citas {
   hora           String?       @db.VarChar(10)
   id_veterinario Int?
   id_clinica     Int
+  recordatorio_enviado Boolean @default(false)
   clinicas       clinicas      @relation(fields: [id_clinica], references: [id_clinica])
   mascotas       mascotas?     @relation(fields: [id_mascota], references: [id_mascota])
   usuarios       usuarios?     @relation(fields: [id_usuario], references: [id_usuario])
@@ -45,15 +63,36 @@ model citas {
 }
 
 model consultas {
-  id_consulta        Int                 @id @default(autoincrement())
-  fecha              DateTime?           @default(now()) @db.Timestamp(6)
-  motivo             String?
-  diagnostico        String?
-  tratamiento        String?
-  id_historia        Int?
-  id_usuario         Int?
-  historias_clinicas historias_clinicas? @relation(fields: [id_historia], references: [id_historia], onDelete: NoAction, onUpdate: NoAction)
-  usuarios           usuarios?           @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  id_consulta         Int                   @id @default(autoincrement())
+  fecha               DateTime?             @default(now()) @db.Timestamp(6)
+  motivo              String?
+  diagnostico         String?
+  tratamiento         String?
+  peso                Decimal?              @db.Decimal(5, 2)
+  temperatura         Decimal?              @db.Decimal(4, 1)
+  frecuencia_cardiaca Int?
+  recomendaciones     String?
+  id_historia         Int?
+  id_usuario          Int?
+  eliminada_at        DateTime?             @db.Timestamp(6)
+  historias_clinicas  historias_clinicas?   @relation(fields: [id_historia], references: [id_historia], onDelete: NoAction, onUpdate: NoAction)
+  usuarios            usuarios?             @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+  auditoria_consultas auditoria_consultas[]
+}
+
+model auditoria_consultas {
+  id_auditoria     Int       @id @default(autoincrement())
+  id_consulta      Int
+  id_usuario       Int
+  accion           String    @db.VarChar(20)
+  motivo           String?
+  datos_anteriores Json
+  created_at       DateTime  @default(now()) @db.Timestamp(6)
+
+  consultas consultas @relation(fields: [id_consulta], references: [id_consulta], onDelete: Cascade, onUpdate: NoAction)
+  usuarios  usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([id_consulta])
 }
 
 model historias_clinicas {
@@ -155,14 +194,19 @@ model usuarios {
   password                 String           @db.VarChar(255)
   id_rol                   Int?
   id_clinica               Int?
+  email_verificado         Boolean          @default(true)
   citas                    citas[]
   consultas                consultas[]
+  auditoria_consultas      auditoria_consultas[]
   notificaciones_recibidas notificaciones[] @relation("notificaciones_destino")
   notificaciones_enviadas  notificaciones[] @relation("notificaciones_origen")
   propietarios             propietarios?
   clinicas                 clinicas?        @relation(fields: [id_clinica], references: [id_clinica])
   roles                    roles?           @relation(fields: [id_rol], references: [id_rol], onDelete: NoAction, onUpdate: NoAction)
   veterinarios             veterinarios?
+  admin_history_previous   admin_history[]  @relation("admin_history_previous_admin")
+  admin_history_new        admin_history[]  @relation("admin_history_new_admin")
+  admin_history_changed_by admin_history[]  @relation("admin_history_changed_by")
 
   @@unique([email, id_clinica])
 }

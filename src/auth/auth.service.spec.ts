@@ -14,12 +14,16 @@ jest.mock('google-auth-library', () => ({
   })),
 }));
 
+interface UsuarioCreateArgs {
+  data: { email_verificado: boolean };
+}
+
 const mockPrisma = {
   usuarios: {
     findUnique: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn(),
-    create: jest.fn(),
+    create: jest.fn<unknown, [UsuarioCreateArgs]>(),
     update: jest.fn(),
   },
   roles: {
@@ -57,7 +61,14 @@ const mockConfig = {
   getOrThrow: jest.fn().mockReturnValue('mock-secret'),
 };
 
-const mockMail = { sendPasswordReset: jest.fn() };
+const mockMail = {
+  sendPasswordReset: jest.fn(),
+  sendWelcome: jest.fn(),
+  sendVerifyEmail: jest.fn(),
+  sendAppointmentConfirmation: jest.fn(),
+  sendAppointmentReminder: jest.fn(),
+  sendAppointmentCancelled: jest.fn(),
+};
 
 const mockNotificaciones = {
   crearParaUsuario: jest.fn(),
@@ -125,7 +136,9 @@ describe('AuthService', () => {
         clinicaSlug: 'test-clinic',
       });
 
-      expect(result.user.role).toBe('Cliente');
+      expect(result.requiresEmailVerification).toBe(true);
+      const createCall = mockPrisma.usuarios.create.mock.calls[0][0];
+      expect(createCall.data).toMatchObject({ email_verificado: false });
       expect(mockPrisma.roles.findUnique).toHaveBeenCalledWith({
         where: { nombre: 'Cliente' },
       });
@@ -227,6 +240,26 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    it('lanza UnauthorizedException si el correo no fue confirmado', async () => {
+      const hashed = await bcrypt.hash('Pass1@test', 10);
+      mockPrisma.usuarios.findMany.mockResolvedValue([
+        {
+          id_usuario: 1,
+          nombre: 'Test',
+          email: 'a@b.com',
+          id_clinica: 1,
+          password: hashed,
+          email_verificado: false,
+          roles: { nombre: 'Cliente' },
+          clinicas: clinicaTest,
+        },
+      ]);
+
+      await expect(
+        service.login({ email: 'a@b.com', password: 'Pass1@test' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
     it('retorna token y datos del usuario en login exitoso', async () => {
       const hashed = await bcrypt.hash('Pass1@test', 10);
       mockPrisma.usuarios.findMany.mockResolvedValue([
@@ -236,6 +269,7 @@ describe('AuthService', () => {
           email: 'a@b.com',
           id_clinica: 1,
           password: hashed,
+          email_verificado: true,
           roles: { nombre: 'Cliente' },
           clinicas: clinicaTest,
         },

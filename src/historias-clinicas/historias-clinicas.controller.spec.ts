@@ -8,6 +8,7 @@ const mockService = {
   createConsulta: jest.fn(),
   updateConsulta: jest.fn(),
   removeConsulta: jest.fn(),
+  getConsultaAuditoria: jest.fn(),
 };
 
 const vetUser = {
@@ -67,8 +68,16 @@ describe('HistoriasClinicasController', () => {
       message: 'Consulta eliminada.',
     });
 
-    await controller.removeConsulta(1, vetUser);
+    await controller.removeConsulta(1, {}, vetUser);
 
-    expect(mockService.removeConsulta).toHaveBeenCalledWith(1, vetUser);
+    expect(mockService.removeConsulta).toHaveBeenCalledWith(1, {}, vetUser);
+  });
+
+  it('propaga CurrentUser al consultar auditoría de consulta', async () => {
+    mockService.getConsultaAuditoria.mockReturnValue([]);
+
+    await controller.getConsultaAuditoria(1, vetUser);
+
+    expect(mockService.getConsultaAuditoria).toHaveBeenCalledWith(1, vetUser);
   });
 });

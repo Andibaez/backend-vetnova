@@ -4,16 +4,22 @@ import {
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { ClinicasService } from './clinicas.service';
 import { CreateClinicaDto } from './dto/create-clinica.dto';
 import { UpdateClinicaDto } from './dto/update-clinica.dto';
+import { ChangeAdminDto } from './dto/change-admin.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ROLES } from '../common/constants/roles.constant';
+import { JwtPayload } from '../common/types/jwt-payload.type';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @ApiTags('clinicas')
 @Controller('clinicas')
@@ -58,5 +64,26 @@ export class ClinicasController {
   @Put(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateClinicaDto) {
     return this.clinicasService.update(id, dto);
+  }
+
+  @ApiCookieAuth('vetnova-token')
+  @Roles(ROLES.SUPER_ADMIN)
+  @Patch(':id/admin')
+  changeAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: ChangeAdminDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.clinicasService.changeAdmin(id, dto, user.sub);
+  }
+
+  @ApiCookieAuth('vetnova-token')
+  @Roles(ROLES.SUPER_ADMIN)
+  @Get(':id/admin-history')
+  getAdminHistory(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() pagination: PaginationDto,
+  ) {
+    return this.clinicasService.getAdminHistory(id, pagination);
   }
 }

@@ -3,6 +3,11 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { NotificacionesService } from './notificaciones.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ROLES } from '../common/constants/roles.constant';
+import { NotificationsGateway } from './notifications.gateway';
+
+const mockGateway = {
+  emitToUser: jest.fn(),
+};
 
 const mockPrisma = {
   notificaciones: {
@@ -36,6 +41,7 @@ describe('NotificacionesService', () => {
       providers: [
         NotificacionesService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: NotificationsGateway, useValue: mockGateway },
       ],
     }).compile();
 
@@ -126,7 +132,14 @@ describe('NotificacionesService', () => {
     mockPrisma.usuarios.findUnique
       .mockResolvedValueOnce({ id_clinica: 1 })
       .mockResolvedValueOnce({ id_clinica: 1 });
-    mockPrisma.notificaciones.create.mockResolvedValue({});
+    mockPrisma.notificaciones.create.mockResolvedValue({
+      id_notificacion: 1,
+      titulo: 'Título',
+      mensaje: 'Mensaje',
+      tipo: 'general',
+      leida: false,
+      created_at: new Date(),
+    });
 
     await service.crearParaUsuario(2, 'Título', 'Mensaje', 'general', 1);
 

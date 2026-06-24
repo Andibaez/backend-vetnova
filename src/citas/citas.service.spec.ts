@@ -3,6 +3,7 @@ import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { CitasService } from './citas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificacionesService } from '../notificaciones/notificaciones.service';
+import { MailService } from '../mail/mail.service';
 import { ROLES } from '../common/constants/roles.constant';
 
 const mockPrisma = {
@@ -24,6 +25,13 @@ const mockPrisma = {
 const mockNotificaciones = {
   crearParaAdmins: jest.fn(),
   crearParaUsuario: jest.fn(),
+};
+
+const mockMail = {
+  sendAppointmentConfirmation: jest.fn(),
+  sendAppointmentReminder: jest.fn(),
+  sendAppointmentCancelled: jest.fn(),
+  sendWelcome: jest.fn(),
 };
 
 const adminUser = {
@@ -73,6 +81,7 @@ describe('CitasService', () => {
         CitasService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: NotificacionesService, useValue: mockNotificaciones },
+        { provide: MailService, useValue: mockMail },
       ],
     }).compile();
 
@@ -244,6 +253,49 @@ describe('CitasService', () => {
         expect.any(Number),
         'cita',
       );
+    });
+
+    it('cliente puede cancelar su propia cita', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue(citaBase);
+      mockPrisma.citas.update.mockResolvedValue({
+        ...citaBase,
+        estado: 'cancelada',
+      });
+
+      const result = await service.update(
+        1,
+        { estado: 'cancelada' },
+        clienteUser,
+      );
+
+      expect(result).toBeDefined();
+      expect(mockPrisma.citas.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id_cita: 1 },
+          data: { estado: 'cancelada' },
+        }),
+      );
+    });
+
+    it('cliente no puede cancelar la cita de otro cliente', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue({
+        ...citaBase,
+        id_usuario: 999,
+      });
+
+      await expect(
+        service.update(1, { estado: 'cancelada' }, clienteUser),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.citas.update).not.toHaveBeenCalled();
+    });
+
+    it('cliente no puede cambiar su cita a un estado distinto de cancelada', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue(citaBase);
+
+      await expect(
+        service.update(1, { estado: 'confirmada' }, clienteUser),
+      ).rejects.toThrow(ForbiddenException);
+      expect(mockPrisma.citas.update).not.toHaveBeenCalled();
     });
   });
 });

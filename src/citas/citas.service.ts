@@ -316,11 +316,22 @@ export class CitasService {
       }
     }
 
+    if (user.role === ROLES.CLIENTE) {
+      if (existing.id_usuario !== user.sub) {
+        throw new ForbiddenException('No tienes permiso para modificar esta cita.');
+      }
+      if (dto.estado !== 'cancelada') {
+        throw new ForbiddenException('Solo puedes cancelar tu cita.');
+      }
+    }
+
     // Veterinario solo puede modificar campos clínicos — nunca reasignar mascota, usuario o veterinario
     const data: Record<string, unknown> =
       user.role === ROLES.VETERINARIO
         ? { estado: dto.estado, notas: dto.notas, servicio: dto.servicio }
-        : (() => {
+        : user.role === ROLES.CLIENTE
+          ? { estado: dto.estado }
+          : (() => {
             const { veterinario, id_usuario_veterinario, ...rest } = dto;
             const d: Record<string, unknown> = { ...rest };
 

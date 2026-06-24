@@ -50,7 +50,7 @@ export class CitasController {
     return this.citasService.findOne(id, user);
   }
 
-  @Roles(ROLES.ADMIN, ROLES.VETERINARIO)
+  @Roles(ROLES.ADMIN, ROLES.VETERINARIO, ROLES.CLIENTE)
   @Put(':id')
   update(
     @Param('id', ParseIntPipe) id: number,

@@ -147,13 +147,14 @@ export class ClinicasService {
     });
 
     if (isGenerated) {
-      await this.mail.sendTemporaryPassword(adminEmail, {
+      // No bloquea la respuesta: la clínica ya quedó creada, el correo es secundario.
+      void this.mail.sendTemporaryPassword(adminEmail, {
         nombre: adminNombre,
         tempPassword,
         clinica: clinica.nombre,
       });
       this.logger.log(
-        `Contraseña temporal generada y enviada al admin de la clínica ${clinica.id_clinica}.`,
+        `Contraseña temporal generada para el admin de la clínica ${clinica.id_clinica}.`,
       );
     }
 
@@ -247,13 +248,14 @@ export class ClinicasService {
     });
 
     if (tempPassword) {
-      await this.mail.sendTemporaryPassword(newAdminEmail, {
+      // No bloquea la respuesta: el cambio de admin ya quedó registrado.
+      void this.mail.sendTemporaryPassword(newAdminEmail, {
         nombre: newAdminNombre ?? newAdminEmail.split('@')[0],
         tempPassword,
         clinica: clinica.nombre,
       });
       this.logger.log(
-        `Contraseña temporal generada y enviada al nuevo admin de la clínica ${clinicaId}.`,
+        `Contraseña temporal generada para el nuevo admin de la clínica ${clinicaId}.`,
       );
     }
 

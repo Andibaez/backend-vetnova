@@ -174,7 +174,7 @@ export class AuthService {
         }. ¡Gracias por registrarte!`,
         'bienvenida',
       );
-      await this.mail.sendWelcome(user.email, {
+      void this.mail.sendWelcome(user.email, {
         nombre: user.nombre ?? 'cliente',
         clinica: user.clinicas?.nombre,
         loginUrl: this.config.get<string>('FRONTEND_URL'),
@@ -457,7 +457,7 @@ export class AuthService {
             ROLES.CLIENTE,
             clinica.id_clinica,
           );
-          await this.mail.sendWelcome(normalizedEmail, {
+          void this.mail.sendWelcome(normalizedEmail, {
             nombre: user.nombre ?? 'cliente',
             clinica: clinica.nombre,
             loginUrl: this.config.get<string>('FRONTEND_URL'),

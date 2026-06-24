@@ -35,6 +35,11 @@ export class MailService {
         user: this.config.getOrThrow<string>('GMAIL_USER'),
         pass: this.config.getOrThrow<string>('GMAIL_APP_PASSWORD'),
       },
+      // Si el SMTP de Gmail no responde, fallar en segundos en vez de
+      // colgar la petición HTTP por minutos (default de nodemailer).
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 8000,
     });
   }
 

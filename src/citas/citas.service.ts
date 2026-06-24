@@ -175,7 +175,8 @@ export class CitasService {
     }
 
     if (cita.usuarios?.email) {
-      await this.mail.sendAppointmentConfirmation(cita.usuarios.email, {
+      // No bloquea la respuesta: el correo es informativo, la cita ya quedó creada.
+      void this.mail.sendAppointmentConfirmation(cita.usuarios.email, {
         nombre: cita.usuarios.nombre ?? 'cliente',
         mascota: mascotaNombre,
         fecha: this.formatFecha(cita.fecha),
@@ -480,7 +481,7 @@ export class CitasService {
       cita.estado === 'cancelada' &&
       existing.usuarios?.email
     ) {
-      await this.mail.sendAppointmentCancelled(existing.usuarios.email, {
+      void this.mail.sendAppointmentCancelled(existing.usuarios.email, {
         nombre: existing.usuarios.nombre ?? 'cliente',
         mascota: mascotaNombre,
         fecha: fechaTexto,
@@ -504,7 +505,7 @@ export class CitasService {
     const deleted = await this.prisma.citas.delete({ where: { id_cita: id } });
 
     if (cita.usuarios?.email && cita.fecha && cita.hora) {
-      await this.mail.sendAppointmentCancelled(cita.usuarios.email, {
+      void this.mail.sendAppointmentCancelled(cita.usuarios.email, {
         nombre: cita.usuarios.nombre ?? 'cliente',
         mascota: cita.mascotas?.nombre ?? 'tu mascota',
         fecha: this.formatFecha(cita.fecha),

@@ -7,16 +7,11 @@ import { MailService } from '../mail/mail.service';
  * Envía recordatorios por email de las citas confirmadas que ocurren
  * dentro de las próximas 24 horas.
  *
- * Limitación conocida: el modelo `citas` no tiene un campo para marcar
- * que el recordatorio ya fue enviado (ej. `recordatorio_enviado_at`).
- * Para evitar reenvíos duplicados en re-ejecuciones del mismo día se usa
- * una ventana horaria angosta (el rango de horas correspondiente a "dentro
- * de 24h" calculado a partir de la hora de ejecución del cron, que corre
- * una sola vez al día a las 9:00am). Si el proceso se reinicia o el cron
- * se dispara más de una vez el mismo día, podría reenviarse el recordatorio
- * a las citas que caigan en esa ventana. Si se requiere garantía estricta
- * de envío único, se debe agregar una columna en `citas` (por ejemplo
- * `recordatorio_enviado` boolean) vía migración de Prisma.
+ * Para evitar reenvíos duplicados en re-ejecuciones del mismo día (por
+ * ejemplo, reinicio del proceso o redeploy) se usa la columna
+ * `recordatorio_enviado` en `citas`: solo se seleccionan citas con
+ * `recordatorio_enviado = false`, y cada cita se marca como `true`
+ * únicamente después de que el envío del correo resuelva sin error.
  */
 @Injectable()
 export class AppointmentRemindersCron {
@@ -45,6 +40,7 @@ export class AppointmentRemindersCron {
       where: {
         estado: 'confirmada',
         fecha: { gte: target, lt: nextDay },
+        recordatorio_enviado: false,
       },
       include: {
         mascotas: true,
@@ -61,14 +57,24 @@ export class AppointmentRemindersCron {
 
     for (const cita of citas) {
       if (!cita.usuarios?.email || !cita.fecha || !cita.hora) continue;
-      await this.mail.sendAppointmentReminder(cita.usuarios.email, {
-        nombre: cita.usuarios.nombre ?? 'cliente',
-        mascota: cita.mascotas?.nombre ?? 'tu mascota',
-        fecha: cita.fecha.toISOString().slice(0, 10),
-        hora: cita.hora,
-        servicio: cita.servicio,
-        veterinario: cita.veterinarios?.usuarios?.nombre ?? null,
-      });
+      try {
+        await this.mail.sendAppointmentReminder(cita.usuarios.email, {
+          nombre: cita.usuarios.nombre ?? 'cliente',
+          mascota: cita.mascotas?.nombre ?? 'tu mascota',
+          fecha: cita.fecha.toISOString().slice(0, 10),
+          hora: cita.hora,
+          servicio: cita.servicio,
+          veterinario: cita.veterinarios?.usuarios?.nombre ?? null,
+        });
+        await this.prisma.citas.update({
+          where: { id_cita: cita.id_cita },
+          data: { recordatorio_enviado: true },
+        });
+      } catch (error) {
+        this.logger.error(
+          `Error enviando recordatorio de cita ${cita.id_cita}: ${error instanceof Error ? error.message : error}`,
+        );
+      }
     }
   }
 }

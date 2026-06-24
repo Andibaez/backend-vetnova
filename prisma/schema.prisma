@@ -55,6 +55,7 @@ model citas {
   hora           String?       @db.VarChar(10)
   id_veterinario Int?
   id_clinica     Int
+  recordatorio_enviado Boolean @default(false)
   clinicas       clinicas      @relation(fields: [id_clinica], references: [id_clinica])
   mascotas       mascotas?     @relation(fields: [id_mascota], references: [id_mascota])
   usuarios       usuarios?     @relation(fields: [id_usuario], references: [id_usuario])

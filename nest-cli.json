@@ -8,6 +8,14 @@
       {
         "include": "mail/templates/**/*.hbs",
         "outDir": "dist/src"
+      },
+      {
+        "include": "mail/assets/**/*.png",
+        "outDir": "dist/src"
+      },
+      {
+        "include": "historias-clinicas/assets/**/*.png",
+        "outDir": "dist/src"
       }
     ],
     "watchAssets": true

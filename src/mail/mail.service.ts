@@ -1,10 +1,6 @@
-import {
-  Injectable,
-  Logger,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import * as handlebars from 'handlebars';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -13,14 +9,18 @@ type TemplateName =
   | 'appointment-confirmation'
   | 'appointment-reminder'
   | 'appointment-cancelled'
+  | 'appointment-rescheduled'
   | 'welcome'
   | 'admin-temp-password'
-  | 'verify-email';
+  | 'verify-email'
+  | 'password-reset';
+
+const FROM_ADDRESS = 'VetNova <notificaciones@vetnova.online>';
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private readonly transporter: nodemailer.Transporter;
+  private readonly resend: Resend;
   private readonly templatesDir = path.join(__dirname, 'templates');
   private layoutTemplate: handlebars.TemplateDelegate | null = null;
   private readonly templateCache = new Map<
@@ -29,41 +29,19 @@ export class MailService {
   >();
 
   constructor(private readonly config: ConfigService) {
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: this.config.getOrThrow<string>('GMAIL_USER'),
-        pass: this.config.getOrThrow<string>('GMAIL_APP_PASSWORD'),
-      },
-      // Si el SMTP de Gmail no responde, fallar en segundos en vez de
-      // colgar la petición HTTP por minutos (default de nodemailer).
-      connectionTimeout: 8000,
-      greetingTimeout: 8000,
-      socketTimeout: 8000,
-    });
+    this.resend = new Resend(this.config.getOrThrow<string>('RESEND_API_KEY'));
   }
 
   async sendPasswordReset(to: string, nombre: string, resetLink: string) {
-    const user = this.config.getOrThrow<string>('GMAIL_USER');
-    try {
-      await this.transporter.sendMail({
-        from: `"VetNova" <${user}>`,
-        to,
-        subject: 'Recuperación de contraseña — VetNova',
-        html: `
-          <p>Hola <strong>${nombre}</strong>,</p>
-          <p>Haz clic en el siguiente enlace para restablecer tu contraseña. Expira en 1 hora.</p>
-          <p><a href="${resetLink}">${resetLink}</a></p>
-          <p>Si no solicitaste esto, ignora este correo.</p>
-        `,
-      });
-      this.logger.log(`Reset password email sent to ${to}`);
-    } catch (err) {
-      this.logger.error('Nodemailer error:', err);
-      throw new InternalServerErrorException(
-        'No se pudo enviar el correo de recuperación.',
-      );
-    }
+    await this.sendSafe(
+      to,
+      'Recuperación de contraseña — VetNova',
+      'password-reset',
+      {
+        nombre,
+        resetLink,
+      },
+    );
   }
 
   /**
@@ -123,6 +101,19 @@ export class MailService {
     );
   }
 
+  /** Envía la notificación de reprogramación (cambio de fecha/hora) de una cita. */
+  async sendAppointmentRescheduled(
+    to: string,
+    data: { nombre: string; mascota: string; fecha: string; hora: string },
+  ) {
+    await this.sendSafe(
+      to,
+      'Tu cita fue reprogramada — VetNova',
+      'appointment-rescheduled',
+      data,
+    );
+  }
+
   /** Envía el correo de bienvenida al registrarse un nuevo usuario. */
   async sendWelcome(
     to: string,
@@ -169,8 +160,10 @@ export class MailService {
   }
 
   /**
-   * Renderiza una plantilla y la envía, atrapando cualquier error para que
-   * nunca se propague hacia la operación de negocio que lo invoca.
+   * Renderiza una plantilla y la envía vía Resend, atrapando cualquier
+   * error para que nunca se propague hacia la operación de negocio que
+   * lo invoca (crear una cita, registrar un usuario, etc. no deben
+   * fallar porque el correo no pudo enviarse).
    */
   private async sendSafe(
     to: string,
@@ -180,13 +173,18 @@ export class MailService {
   ) {
     try {
       const html = this.render(template, context);
-      const user = this.config.getOrThrow<string>('GMAIL_USER');
-      await this.transporter.sendMail({
-        from: `"VetNova" <${user}>`,
+      const { error } = await this.resend.emails.send({
+        from: FROM_ADDRESS,
         to,
         subject,
         html,
       });
+      if (error) {
+        this.logger.error(
+          `No se pudo enviar el email "${template}" a ${to}: ${error.message}`,
+        );
+        return;
+      }
       this.logger.log(`Email "${template}" enviado a ${to}`);
     } catch (err) {
       this.logger.error(

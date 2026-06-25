@@ -476,17 +476,33 @@ export class CitasService {
       'cita',
     );
 
-    if (
-      estadoCambio &&
-      cita.estado === 'cancelada' &&
-      existing.usuarios?.email
-    ) {
-      void this.mail.sendAppointmentCancelled(existing.usuarios.email, {
+    if (existing.usuarios?.email) {
+      const datosCorreo = {
         nombre: existing.usuarios.nombre ?? 'cliente',
         mascota: mascotaNombre,
         fecha: fechaTexto,
         hora: horaTexto,
-      });
+      };
+
+      if (estadoCambio && cita.estado === 'confirmada') {
+        void this.mail.sendAppointmentConfirmation(
+          existing.usuarios.email,
+          datosCorreo,
+        );
+      } else if (estadoCambio && cita.estado === 'cancelada') {
+        void this.mail.sendAppointmentCancelled(
+          existing.usuarios.email,
+          datosCorreo,
+        );
+      } else if (
+        (estadoCambio && cita.estado === 'reprogramada') ||
+        (!estadoCambio && fechaHoraCambio)
+      ) {
+        void this.mail.sendAppointmentRescheduled(
+          existing.usuarios.email,
+          datosCorreo,
+        );
+      }
     }
   }
 

@@ -1,17 +1,34 @@
-<h1 style="margin:0 0 16px; font-size:18px; color:#111827;">Tu cita fue confirmada</h1>
-<p style="margin:0 0 16px; font-size:14px; color:#374151; line-height:1.5;">
-  Hola <strong>{{nombre}}</strong>, te confirmamos los detalles de la cita para <strong>{{mascota}}</strong>:
-</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F3F4F6; border-radius:8px; margin-bottom:16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
   <tr>
-    <td style="padding:16px; font-size:14px; color:#111827;">
-      <p style="margin:0 0 8px;"><strong>Fecha:</strong> {{fecha}}</p>
-      <p style="margin:0 0 8px;"><strong>Hora:</strong> {{hora}}</p>
-      {{#if servicio}}<p style="margin:0 0 8px;"><strong>Servicio:</strong> {{servicio}}</p>{{/if}}
-      {{#if veterinario}}<p style="margin:0;"><strong>Veterinario:</strong> {{veterinario}}</p>{{/if}}
+    <td style="background-color:#ECFDF5; border-radius:999px; padding:6px 14px;">
+      <span class="badge-dot" style="display:inline-block; width:7px; height:7px; border-radius:50%; background-color:#10B981; margin-right:7px; vertical-align:middle;"></span>
+      <span style="font-size:11px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:#047857; vertical-align:middle;">Confirmada</span>
     </td>
   </tr>
 </table>
-<p style="margin:0; font-size:14px; color:#374151; line-height:1.5;">
+
+<h1 style="margin:0 0 16px; font-size:19px; color:#15152B; letter-spacing:-0.01em;">Tu cita fue confirmada</h1>
+<p style="margin:0 0 20px; font-size:14px; color:#3D3D5C; line-height:1.6;">
+  Hola <strong>{{nombre}}</strong>, te confirmamos los detalles de la cita para <strong>{{mascota}}</strong>:
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F8F8FC; border-radius:14px; padding:6px; margin:0 0 20px;">
+  <tr>
+    <td>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF; border:1px solid #EAEAEA; border-radius:10px;">
+        <tr>
+          <td style="padding:18px 20px; font-size:14px; color:#15152B;">
+            <p style="margin:0 0 10px;"><span style="color:#71719C;">Fecha</span><br /><strong>{{fecha}}</strong></p>
+            <p style="margin:0 0 10px;"><span style="color:#71719C;">Hora</span><br /><strong>{{hora}}</strong></p>
+            {{#if servicio}}<p style="margin:0 0 10px;"><span style="color:#71719C;">Servicio</span><br /><strong>{{servicio}}</strong></p>{{/if}}
+            {{#if veterinario}}<p style="margin:0;"><span style="color:#71719C;">Veterinario</span><br /><strong>{{veterinario}}</strong></p>{{/if}}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0; font-size:14px; color:#3D3D5C; line-height:1.6;">
   Si necesitas reprogramar o cancelar, contáctanos con anticipación. ¡Te esperamos!
 </p>

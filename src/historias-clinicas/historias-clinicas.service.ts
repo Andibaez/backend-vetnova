@@ -5,6 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
+import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConsultaDto } from './dto/create-consulta.dto';
 import { UpdateConsultaDto } from './dto/update-consulta.dto';
@@ -155,6 +156,181 @@ export class HistoriasClinicasService {
     };
   }
 
+  private static readonly PDF_HEADER_HEIGHT = 92;
+  private static readonly PDF_BRAND_INDIGO_DARK = '#4347C9';
+  private static readonly PDF_BRAND_INDIGO_LIGHT = '#818CF8';
+  private static readonly PDF_LOGO_PATH = path.join(
+    __dirname,
+    'assets',
+    'vetnova-icon-white.png',
+  );
+
+  private drawPdfHeader(doc: PDFKit.PDFDocument) {
+    const { width } = doc.page;
+    const gradient = doc
+      .linearGradient(0, 0, width, HistoriasClinicasService.PDF_HEADER_HEIGHT)
+      .stop(0, HistoriasClinicasService.PDF_BRAND_INDIGO_DARK)
+      .stop(1, HistoriasClinicasService.PDF_BRAND_INDIGO_LIGHT);
+    doc
+      .rect(0, 0, width, HistoriasClinicasService.PDF_HEADER_HEIGHT)
+      .fill(gradient);
+
+    try {
+      doc.image(HistoriasClinicasService.PDF_LOGO_PATH, 50, 28, {
+        width: 34,
+      });
+    } catch {
+      // Si el asset no está disponible (ej. entorno de test), seguimos sin logo.
+    }
+
+    doc
+      .fillColor('#FFFFFF')
+      .font('Helvetica-Bold')
+      .fontSize(18)
+      .text('VetNova', 96, 32);
+    doc
+      .fillColor('#E0E7FF')
+      .font('Helvetica')
+      .fontSize(10.5)
+      .text('Historial clínico', 96, 54);
+    doc.fillColor('#000000');
+  }
+
+  private drawPdfFooter(doc: PDFKit.PDFDocument, pageLabel: string) {
+    const { width, height, margins } = doc.page;
+    const y = height - margins.bottom + 24;
+    doc
+      .moveTo(margins.left, y)
+      .lineTo(width - margins.right, y)
+      .strokeColor('#EAEAEA')
+      .lineWidth(1)
+      .stroke();
+    // Texto en height fija para que PDFKit lo recorte en vez de interpretar
+    // que "no cabe" y agregar una página nueva (el footer vive a propósito
+    // dentro del margen inferior, por debajo de doc.page.maxY()).
+    doc
+      .font('Helvetica')
+      .fontSize(8.5)
+      .fillColor('#9D9DBE')
+      .text('Generado por VetNova', margins.left, y + 8, {
+        width: width - margins.left - margins.right,
+        height: 16,
+        align: 'left',
+        lineBreak: false,
+      });
+    doc.text(pageLabel, margins.left, y + 8, {
+      width: width - margins.left - margins.right,
+      height: 16,
+      align: 'right',
+      lineBreak: false,
+    });
+  }
+
+  /** Dibuja una tarjeta redondeada con barra lateral de color y devuelve el alto usado. */
+  private drawEventCard(
+    doc: PDFKit.PDFDocument,
+    evento: TimelineEvent,
+    width: number,
+  ): number {
+    const x = doc.page.margins.left;
+    const innerX = x + 16;
+    const innerWidth = width - 32;
+    const accentColor = evento.tipo === 'consulta' ? '#5457E5' : '#10B981';
+
+    const fechaStr = evento.fecha
+      ? new Date(evento.fecha).toLocaleDateString('es-CO')
+      : 'Sin fecha';
+    const tipoStr = evento.tipo === 'consulta' ? 'Consulta' : 'Vacuna';
+
+    doc.font('Helvetica-Bold').fontSize(9.5);
+    const metaHeight = doc.heightOfString(
+      `${fechaStr}   ·   ${tipoStr.toUpperCase()}`,
+      { width: innerWidth },
+    );
+    doc.font('Helvetica-Bold').fontSize(11.5);
+    const tituloHeight = doc.heightOfString(evento.titulo, {
+      width: innerWidth,
+    });
+    let descHeight = 0;
+    if (evento.descripcion) {
+      doc.font('Helvetica').fontSize(9.5);
+      descHeight =
+        doc.heightOfString(evento.descripcion, { width: innerWidth }) + 6;
+    }
+    let registradoHeight = 0;
+    if (evento.registradoPor) {
+      doc.font('Helvetica-Oblique').fontSize(8.5);
+      registradoHeight =
+        doc.heightOfString(`Registrado por: ${evento.registradoPor}`, {
+          width: innerWidth,
+        }) + 6;
+    }
+
+    const paddingY = 14;
+    const cardHeight =
+      paddingY * 2 +
+      metaHeight +
+      4 +
+      tituloHeight +
+      descHeight +
+      registradoHeight;
+
+    if (doc.y + cardHeight > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+    }
+
+    const top = doc.y;
+    doc
+      .roundedRect(x, top, width, cardHeight, 10)
+      .fillAndStroke('#FFFFFF', '#EAEAEA');
+    doc.rect(x, top, 4, cardHeight).fill(accentColor);
+
+    let cursorY = top + paddingY;
+    doc
+      .fillColor('#71719C')
+      .font('Helvetica-Bold')
+      .fontSize(9.5)
+      .text(`${fechaStr}   ·   ${tipoStr.toUpperCase()}`, innerX, cursorY, {
+        width: innerWidth,
+      });
+    cursorY += metaHeight + 4;
+
+    doc
+      .fillColor('#15152B')
+      .font('Helvetica-Bold')
+      .fontSize(11.5)
+      .text(evento.titulo, innerX, cursorY, { width: innerWidth });
+    cursorY += tituloHeight;
+
+    if (evento.descripcion) {
+      cursorY += 6;
+      doc
+        .fillColor('#3D3D5C')
+        .font('Helvetica')
+        .fontSize(9.5)
+        .text(evento.descripcion, innerX, cursorY, { width: innerWidth });
+      cursorY += descHeight - 6;
+    }
+
+    if (evento.registradoPor) {
+      cursorY += 6;
+      doc
+        .fillColor('#9D9DBE')
+        .font('Helvetica-Oblique')
+        .fontSize(8.5)
+        .text(`Registrado por: ${evento.registradoPor}`, innerX, cursorY, {
+          width: innerWidth,
+        });
+    }
+
+    doc.fillColor('#000000');
+    // doc.text() con coordenadas explícitas igual mueve el cursor interno de
+    // PDFKit — lo fijamos al valor absoluto correcto en vez de dejar que el
+    // último .text() decida dónde queda doc.y.
+    doc.y = top + cardHeight;
+    return cardHeight;
+  }
+
   async generateTimelinePdf(
     id_mascota: number,
     user: JwtPayload,
@@ -162,79 +338,68 @@ export class HistoriasClinicasService {
     const { mascota, eventos } = await this.getTimeline(id_mascota, user);
 
     return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: { top: 116, bottom: 56, left: 50, right: 50 },
+        bufferPages: true,
+      });
       const chunks: Buffer[] = [];
       doc.on('data', (chunk: Buffer) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', (err: Error) => reject(err));
 
-      doc
-        .fontSize(18)
-        .font('Helvetica-Bold')
-        .text('Historial clínico', { align: 'left' });
-      doc.moveDown(0.3);
+      const contentWidth =
+        doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
+      this.drawPdfHeader(doc);
+      doc.on('pageAdded', () => this.drawPdfHeader(doc));
+
+      // Tarjeta de datos del paciente
+      const infoLines = [
+        `Mascota: ${mascota.nombre ?? '—'}`,
+        `Especie: ${mascota.especie ?? '—'}     Raza: ${mascota.raza ?? '—'}`,
+        mascota.clinica ? `Clínica: ${mascota.clinica}` : null,
+        `Generado el: ${new Date().toLocaleDateString('es-CO')}`,
+      ].filter((line): line is string => Boolean(line));
+
+      const infoCardX = doc.page.margins.left;
+      const infoCardTop = doc.y;
+      const infoCardHeight = 16 * 2 + infoLines.length * 15;
       doc
-        .fontSize(12)
-        .font('Helvetica-Bold')
-        .text(`Mascota: ${mascota.nombre ?? '—'}`);
-      doc
-        .font('Helvetica')
-        .fontSize(10)
-        .text(
-          `Especie: ${mascota.especie ?? '—'}   Raza: ${mascota.raza ?? '—'}`,
-        );
-      if (mascota.clinica) {
-        doc.text(`Clínica: ${mascota.clinica}`);
+        .roundedRect(infoCardX, infoCardTop, contentWidth, infoCardHeight, 10)
+        .fill('#F8F8FC');
+      let infoY = infoCardTop + 16;
+      for (const [i, line] of infoLines.entries()) {
+        doc
+          .font(i === 0 ? 'Helvetica-Bold' : 'Helvetica')
+          .fontSize(10.5)
+          .fillColor('#15152B')
+          .text(line, infoCardX + 18, infoY, { width: contentWidth - 36 });
+        infoY += 15;
       }
-      doc.text(`Generado el: ${new Date().toLocaleDateString('es-CO')}`);
-      doc.moveDown(0.8);
-
-      doc
-        .moveTo(doc.x, doc.y)
-        .lineTo(doc.page.width - doc.page.margins.right, doc.y)
-        .strokeColor('#CCCCCC')
-        .stroke();
-      doc.moveDown(0.6);
+      doc.fillColor('#000000');
+      doc.y = infoCardTop + infoCardHeight + 22;
 
       if (eventos.length === 0) {
         doc
           .fontSize(11)
           .font('Helvetica')
+          .fillColor('#71719C')
           .text('No hay eventos clínicos registrados para esta mascota.');
       } else {
         for (const evento of eventos) {
-          const fechaStr = evento.fecha
-            ? new Date(evento.fecha).toLocaleDateString('es-CO')
-            : 'Sin fecha';
-          const tipoStr = evento.tipo === 'consulta' ? 'Consulta' : 'Vacuna';
-
-          doc
-            .fontSize(10)
-            .font('Helvetica-Bold')
-            .fillColor('#1A0F35')
-            .text(`${fechaStr}  ·  ${tipoStr}`);
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(10)
-            .fillColor('#1A0F35')
-            .text(evento.titulo);
-          if (evento.descripcion) {
-            doc
-              .font('Helvetica')
-              .fontSize(9.5)
-              .fillColor('#444444')
-              .text(evento.descripcion);
-          }
-          if (evento.registradoPor) {
-            doc
-              .font('Helvetica-Oblique')
-              .fontSize(8.5)
-              .fillColor('#777777')
-              .text(`Registrado por: ${evento.registradoPor}`);
-          }
-          doc.moveDown(0.6);
+          this.drawEventCard(doc, evento, contentWidth);
+          doc.y += 12;
         }
+      }
+
+      const range = doc.bufferedPageRange();
+      for (let i = range.start; i < range.start + range.count; i++) {
+        doc.switchToPage(i);
+        this.drawPdfFooter(
+          doc,
+          `Página ${i - range.start + 1} de ${range.count}`,
+        );
       }
 
       doc.end();

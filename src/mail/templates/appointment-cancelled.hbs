@@ -1,15 +1,32 @@
-<h1 style="margin:0 0 16px; font-size:18px; color:#111827;">Tu cita fue cancelada</h1>
-<p style="margin:0 0 16px; font-size:14px; color:#374151; line-height:1.5;">
-  Hola <strong>{{nombre}}</strong>, te informamos que la cita de <strong>{{mascota}}</strong> ha sido cancelada:
-</p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FEF2F2; border-radius:8px; margin-bottom:16px;">
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">
   <tr>
-    <td style="padding:16px; font-size:14px; color:#111827;">
-      <p style="margin:0 0 8px;"><strong>Fecha:</strong> {{fecha}}</p>
-      <p style="margin:0;"><strong>Hora:</strong> {{hora}}</p>
+    <td style="background-color:#FEF2F2; border-radius:999px; padding:6px 14px;">
+      <span class="badge-dot" style="display:inline-block; width:7px; height:7px; border-radius:50%; background-color:#EF4444; margin-right:7px; vertical-align:middle;"></span>
+      <span style="font-size:11px; font-weight:bold; letter-spacing:0.08em; text-transform:uppercase; color:#B91C1C; vertical-align:middle;">Cancelada</span>
     </td>
   </tr>
 </table>
-<p style="margin:0; font-size:14px; color:#374151; line-height:1.5;">
+
+<h1 style="margin:0 0 16px; font-size:19px; color:#15152B; letter-spacing:-0.01em;">Tu cita fue cancelada</h1>
+<p style="margin:0 0 20px; font-size:14px; color:#3D3D5C; line-height:1.6;">
+  Hola <strong>{{nombre}}</strong>, te informamos que la cita de <strong>{{mascota}}</strong> ha sido cancelada:
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FDF2F2; border-radius:14px; padding:6px; margin:0 0 20px;">
+  <tr>
+    <td>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#FFFFFF; border:1px solid #FCE4E4; border-radius:10px;">
+        <tr>
+          <td style="padding:18px 20px; font-size:14px; color:#15152B;">
+            <p style="margin:0 0 10px;"><span style="color:#71719C;">Fecha</span><br /><strong>{{fecha}}</strong></p>
+            <p style="margin:0;"><span style="color:#71719C;">Hora</span><br /><strong>{{hora}}</strong></p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0; font-size:14px; color:#3D3D5C; line-height:1.6;">
   Si deseas agendar una nueva cita, puedes hacerlo desde tu panel de VetNova cuando lo necesites.
 </p>

@@ -31,6 +31,7 @@ const mockMail = {
   sendAppointmentConfirmation: jest.fn(),
   sendAppointmentReminder: jest.fn(),
   sendAppointmentCancelled: jest.fn(),
+  sendAppointmentRescheduled: jest.fn(),
   sendWelcome: jest.fn(),
 };
 
@@ -68,7 +69,7 @@ const citaBase = {
   hora: '10:00',
   estado: 'pendiente',
   mascotas: { nombre: 'Firulais', propietario },
-  usuarios: { id_usuario: 2, nombre: 'Cliente' },
+  usuarios: { id_usuario: 2, nombre: 'Cliente', email: 'cliente@test.com' },
   veterinarios: null,
 };
 
@@ -253,6 +254,89 @@ describe('CitasService', () => {
         expect.any(Number),
         'cita',
       );
+      expect(mockMail.sendAppointmentConfirmation).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({ nombre: 'Cliente', mascota: 'Firulais' }),
+      );
+      expect(mockMail.sendAppointmentCancelled).not.toHaveBeenCalled();
+      expect(mockMail.sendAppointmentRescheduled).not.toHaveBeenCalled();
+    });
+
+    it('envía correo de reprogramación cuando el estado cambia a reprogramada', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue({
+        ...citaBase,
+        id_veterinario: 7,
+      });
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 7,
+      });
+      mockPrisma.citas.update.mockResolvedValue({
+        ...citaBase,
+        estado: 'reprogramada',
+      });
+
+      await service.update(1, { estado: 'reprogramada' }, vetUser);
+
+      expect(mockMail.sendAppointmentRescheduled).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({ nombre: 'Cliente', mascota: 'Firulais' }),
+      );
+      expect(mockMail.sendAppointmentConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('envía correo de reprogramación cuando solo cambia fecha/hora sin cambiar el estado', async () => {
+      const nuevaFecha = new Date('2026-08-01');
+      mockPrisma.citas.findUnique.mockResolvedValue({
+        ...citaBase,
+        id_veterinario: 7,
+      });
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 7,
+      });
+      mockPrisma.citas.update.mockResolvedValue({
+        ...citaBase,
+        fecha: nuevaFecha,
+        hora: '15:00',
+      });
+
+      await service.update(1, { fecha: '2026-08-01', hora: '15:00' }, vetUser);
+
+      expect(mockMail.sendAppointmentRescheduled).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({ nombre: 'Cliente', mascota: 'Firulais' }),
+      );
+    });
+
+    it('envía correo de cancelación cuando el estado cambia a cancelada', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue(citaBase);
+      mockPrisma.citas.update.mockResolvedValue({
+        ...citaBase,
+        estado: 'cancelada',
+      });
+
+      await service.update(1, { estado: 'cancelada' }, clienteUser);
+
+      expect(mockMail.sendAppointmentCancelled).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({ nombre: 'Cliente', mascota: 'Firulais' }),
+      );
+    });
+
+    it('no envía correo si no hay cambio de estado ni de fecha/hora', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue({
+        ...citaBase,
+        id_veterinario: 7,
+      });
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 7,
+      });
+      mockPrisma.citas.update.mockResolvedValue({ ...citaBase });
+
+      await service.update(1, { notas: 'Sin cambios relevantes' }, vetUser);
+
+      expect(mockMail.sendAppointmentConfirmation).not.toHaveBeenCalled();
+      expect(mockMail.sendAppointmentCancelled).not.toHaveBeenCalled();
+      expect(mockMail.sendAppointmentRescheduled).not.toHaveBeenCalled();
     });
 
     it('cliente puede cancelar su propia cita', async () => {

@@ -240,6 +240,7 @@ model registro_vacunas {
   id_mascota    Int?
   id_vacuna     Int?
   archivada_por_migracion Boolean @default(false)
+  recordatorio_enviado    Boolean @default(false)
   mascotas      mascotas? @relation(fields: [id_mascota], references: [id_mascota], onDelete: NoAction, onUpdate: NoAction)
   vacunas       vacunas?  @relation(fields: [id_vacuna], references: [id_vacuna], onDelete: NoAction, onUpdate: NoAction)
 }

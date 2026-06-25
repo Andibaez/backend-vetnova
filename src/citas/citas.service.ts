@@ -502,6 +502,11 @@ export class CitasService {
           existing.usuarios.email,
           datosCorreo,
         );
+      } else if (estadoCambio && cita.estado === 'no asistió') {
+        void this.mail.sendAppointmentNoShow(
+          existing.usuarios.email,
+          datosCorreo,
+        );
       }
     }
   }

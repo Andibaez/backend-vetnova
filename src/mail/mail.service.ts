@@ -10,6 +10,10 @@ type TemplateName =
   | 'appointment-reminder'
   | 'appointment-cancelled'
   | 'appointment-rescheduled'
+  | 'appointment-no-show'
+  | 'vaccine-reminder'
+  | 'new-client-notice'
+  | 'client-migrated-notice'
   | 'welcome'
   | 'admin-temp-password'
   | 'verify-email'
@@ -110,6 +114,73 @@ export class MailService {
       to,
       'Tu cita fue reprogramada — VetNova',
       'appointment-rescheduled',
+      data,
+    );
+  }
+
+  /** Envía aviso de que el cliente no asistió a su cita, invitándolo a reprogramar. */
+  async sendAppointmentNoShow(
+    to: string,
+    data: { nombre: string; mascota: string; fecha: string; hora: string },
+  ) {
+    await this.sendSafe(
+      to,
+      'No asististe a tu cita — VetNova',
+      'appointment-no-show',
+      data,
+    );
+  }
+
+  /** Envía recordatorio de que una vacuna de la mascota vence pronto. */
+  async sendVaccineReminder(
+    to: string,
+    data: {
+      nombre: string;
+      mascota: string;
+      vacuna: string;
+      fecha: string;
+    },
+  ) {
+    await this.sendSafe(
+      to,
+      `Recordatorio de vacuna para ${data.mascota} — VetNova`,
+      'vaccine-reminder',
+      data,
+    );
+  }
+
+  /** Avisa a un administrador que un nuevo cliente se registró en su clínica. */
+  async sendNewClientNotice(
+    to: string,
+    data: {
+      adminNombre: string;
+      clienteNombre: string;
+      clienteEmail: string;
+      clinica: string;
+    },
+  ) {
+    await this.sendSafe(
+      to,
+      'Nuevo cliente registrado — VetNova',
+      'new-client-notice',
+      data,
+    );
+  }
+
+  /** Avisa a un administrador que un cliente migró su cuenta a su clínica. */
+  async sendClientMigratedNotice(
+    to: string,
+    data: {
+      adminNombre: string;
+      clienteNombre: string;
+      clienteEmail: string;
+      clinicaAnterior: string | null;
+    },
+  ) {
+    await this.sendSafe(
+      to,
+      'Un cliente migró su cuenta a tu clínica — VetNova',
+      'client-migrated-notice',
       data,
     );
   }

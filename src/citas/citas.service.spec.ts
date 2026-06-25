@@ -32,6 +32,7 @@ const mockMail = {
   sendAppointmentReminder: jest.fn(),
   sendAppointmentCancelled: jest.fn(),
   sendAppointmentRescheduled: jest.fn(),
+  sendAppointmentNoShow: jest.fn(),
   sendWelcome: jest.fn(),
 };
 
@@ -320,6 +321,28 @@ describe('CitasService', () => {
         'cliente@test.com',
         expect.objectContaining({ nombre: 'Cliente', mascota: 'Firulais' }),
       );
+    });
+
+    it('envía correo de inasistencia cuando el estado cambia a no asistió', async () => {
+      mockPrisma.citas.findUnique.mockResolvedValue({
+        ...citaBase,
+        id_veterinario: 7,
+      });
+      mockPrisma.veterinarios.findUnique.mockResolvedValue({
+        id_veterinario: 7,
+      });
+      mockPrisma.citas.update.mockResolvedValue({
+        ...citaBase,
+        estado: 'no asistió',
+      });
+
+      await service.update(1, { estado: 'no asistió' }, vetUser);
+
+      expect(mockMail.sendAppointmentNoShow).toHaveBeenCalledWith(
+        'cliente@test.com',
+        expect.objectContaining({ nombre: 'Cliente', mascota: 'Firulais' }),
+      );
+      expect(mockMail.sendAppointmentCancelled).not.toHaveBeenCalled();
     });
 
     it('no envía correo si no hay cambio de estado ni de fecha/hora', async () => {

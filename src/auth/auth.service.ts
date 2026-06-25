@@ -113,6 +113,14 @@ export class AuthService {
         user.id_usuario,
         'usuario',
       );
+      void this.notifyAdminsByEmail(clinica.id_clinica, (admin) =>
+        this.mail.sendNewClientNotice(admin.email, {
+          adminNombre: admin.nombre ?? 'administrador',
+          clienteNombre: user.nombre ?? normalizedEmail,
+          clienteEmail: normalizedEmail,
+          clinica: clinica.nombre,
+        }),
+      );
     }
 
     await this.sendVerificationEmail(
@@ -645,6 +653,26 @@ export class AuthService {
       });
     });
 
+    await this.notificaciones.crearParaAdmins(
+      'Cliente migrado desde otra clínica',
+      `${usuario.nombre} (${usuario.email}) migró su cuenta a esta clínica${
+        clinicaOrigen?.nombre ? ` desde ${clinicaOrigen.nombre}` : ''
+      }.`,
+      'cliente_migrado',
+      clinicaDestino.id_clinica,
+      usuario.id_usuario,
+      usuario.id_usuario,
+      'usuario',
+    );
+    void this.notifyAdminsByEmail(clinicaDestino.id_clinica, (admin) =>
+      this.mail.sendClientMigratedNotice(admin.email, {
+        adminNombre: admin.nombre ?? 'administrador',
+        clienteNombre: usuario.nombre ?? usuario.email,
+        clienteEmail: usuario.email,
+        clinicaAnterior: clinicaOrigen?.nombre ?? null,
+      }),
+    );
+
     const token = this.signToken(
       usuario.id_usuario,
       usuario.nombre!,
@@ -819,6 +847,22 @@ export class AuthService {
     });
 
     return { message: 'Contraseña actualizada correctamente.' };
+  }
+
+  /**
+   * Notifica por correo a todos los administradores de una clínica.
+   * Nunca lanza: un fallo de envío no debe interrumpir el flujo de
+   * negocio que lo invoca (registro, cambio de clínica, etc.).
+   */
+  private async notifyAdminsByEmail(
+    clinicaId: number,
+    send: (admin: { email: string; nombre: string | null }) => Promise<void>,
+  ) {
+    const admins = await this.prisma.usuarios.findMany({
+      where: { roles: { nombre: ROLES.ADMIN }, id_clinica: clinicaId },
+      select: { email: true, nombre: true },
+    });
+    await Promise.all(admins.map((admin) => send(admin)));
   }
 
   private async findOrCreateRole(nombre: string) {

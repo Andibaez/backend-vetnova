@@ -100,6 +100,8 @@ const mockMail = {
   sendAppointmentConfirmation: jest.fn(),
   sendAppointmentReminder: jest.fn(),
   sendAppointmentCancelled: jest.fn(),
+  sendNewClientNotice: jest.fn(),
+  sendClientMigratedNotice: jest.fn(),
 };
 
 const mockNotificaciones = {
@@ -127,6 +129,8 @@ describe('AuthService', () => {
     mockPrisma.$transaction.mockImplementation((cb: (tx: unknown) => unknown) =>
       cb(mockPrisma),
     );
+    // Default: sin administradores que notificar, salvo que el test lo sobreescriba.
+    mockPrisma.usuarios.findMany.mockResolvedValue([]);
   });
 
   // ── register ────────────────────────────────────────────────
@@ -238,6 +242,42 @@ describe('AuthService', () => {
             id_usuario: 5,
             nombre: 'Test',
           },
+        }),
+      );
+    });
+
+    it('notifica por correo a los administradores de la clínica', async () => {
+      mockPrisma.clinicas.findUnique.mockResolvedValue(clinicaTest);
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
+      mockPrisma.roles.findUnique.mockResolvedValue({
+        id_rol: 3,
+        nombre: 'Cliente',
+      });
+      mockPrisma.usuarios.create.mockResolvedValue({
+        id_usuario: 5,
+        nombre: 'Test',
+        email: 'a@b.com',
+        id_clinica: 1,
+        roles: { nombre: 'Cliente' },
+      });
+      mockPrisma.propietarios.create.mockResolvedValue({});
+      mockPrisma.usuarios.findMany.mockResolvedValue([
+        { email: 'admin@clinic.com', nombre: 'Admin Clínica' },
+      ]);
+
+      await service.register({
+        nombre: 'Test',
+        email: 'a@b.com',
+        password: 'Pass1@test',
+        clinicaSlug: 'test-clinic',
+      });
+
+      expect(mockMail.sendNewClientNotice).toHaveBeenCalledWith(
+        'admin@clinic.com',
+        expect.objectContaining({
+          adminNombre: 'Admin Clínica',
+          clienteNombre: 'Test',
+          clienteEmail: 'a@b.com',
         }),
       );
     });
@@ -430,6 +470,38 @@ describe('AuthService', () => {
       });
       expect(result.token).toBe('mock.jwt.token');
       expect(result.user.clinicaId).toBe(2);
+    });
+
+    it('notifica por correo a los administradores de la clínica destino', async () => {
+      mockPrisma.usuarios.findUnique.mockResolvedValue(clienteActual);
+      mockPrisma.clinicas.findUnique
+        .mockResolvedValueOnce(clinicaDestino)
+        .mockResolvedValueOnce({ nombre: 'Clínica Origen' });
+      mockPrisma.usuarios.findFirst.mockResolvedValue(null);
+      mockPrisma.mascotas.findMany.mockResolvedValue([]);
+      mockPrisma.usuarios.findMany.mockResolvedValue([
+        { email: 'admin@destino.com', nombre: 'Admin Destino' },
+      ]);
+
+      await service.cambiarClinica(1, 'destino');
+
+      expect(mockNotificaciones.crearParaAdmins).toHaveBeenCalledWith(
+        'Cliente migrado desde otra clínica',
+        expect.any(String),
+        'cliente_migrado',
+        2,
+        1,
+        1,
+        'usuario',
+      );
+      expect(mockMail.sendClientMigratedNotice).toHaveBeenCalledWith(
+        'admin@destino.com',
+        expect.objectContaining({
+          adminNombre: 'Admin Destino',
+          clienteNombre: 'Test',
+          clinicaAnterior: 'Clínica Origen',
+        }),
+      );
     });
   });
 

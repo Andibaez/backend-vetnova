@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { JwtPayload } from '../common/types/jwt-payload.type';
 import { ROLES } from '../common/constants/roles.constant';
 import { NotificationsGateway } from './notifications.gateway';
+import { ContactoPublicoDto } from './dto/contacto-publico.dto';
 
 @Injectable()
 export class NotificacionesService {
@@ -20,7 +21,7 @@ export class NotificacionesService {
     const notificaciones = await this.prisma.notificaciones.findMany({
       where: {
         id_usuario_destino: user.sub,
-        destino: { id_clinica: clinicaId },
+        ...(clinicaId !== null ? { destino: { id_clinica: clinicaId } } : {}),
         ...(soloNoLeidas ? { leida: false } : {}),
       },
       orderBy: { created_at: 'desc' },
@@ -55,7 +56,7 @@ export class NotificacionesService {
       where: {
         id_usuario_destino: user.sub,
         leida: false,
-        destino: { id_clinica: clinicaId },
+        ...(clinicaId !== null ? { destino: { id_clinica: clinicaId } } : {}),
       },
     });
     return { count: total };
@@ -67,7 +68,7 @@ export class NotificacionesService {
       where: {
         id_notificacion: id,
         id_usuario_destino: user.sub,
-        destino: { id_clinica: clinicaId },
+        ...(clinicaId !== null ? { destino: { id_clinica: clinicaId } } : {}),
       },
       data: { leida: true },
     });
@@ -79,7 +80,7 @@ export class NotificacionesService {
       where: {
         id_usuario_destino: user.sub,
         leida: false,
-        destino: { id_clinica: clinicaId },
+        ...(clinicaId !== null ? { destino: { id_clinica: clinicaId } } : {}),
       },
       data: { leida: true },
     });
@@ -99,10 +100,10 @@ export class NotificacionesService {
       throw new NotFoundException('Notificación no encontrada.');
     }
 
-    if (
-      notificacion.id_usuario_destino !== user.sub ||
-      notificacion.destino.id_clinica !== clinicaId
-    ) {
+    const mismaClinica =
+      clinicaId === null || notificacion.destino.id_clinica === clinicaId;
+
+    if (notificacion.id_usuario_destino !== user.sub || !mismaClinica) {
       throw new ForbiddenException(
         'No tienes permiso para eliminar esta notificación.',
       );
@@ -181,11 +182,52 @@ export class NotificacionesService {
     }
   }
 
-  private requireClinicaId(user?: JwtPayload) {
+  // El SuperAdministrador no pertenece a ninguna clínica: sus notificaciones
+  // no se filtran por id_clinica (devolver null desactiva ese filtro).
+  private requireClinicaId(user?: JwtPayload): number | null {
+    if (user?.role === ROLES.SUPER_ADMIN) return null;
     if (!user?.clinicaId) {
       throw new ForbiddenException('El usuario no tiene una clínica asociada.');
     }
     return user.clinicaId;
+  }
+
+  async crearParaSuperAdmin(
+    titulo: string,
+    mensaje: string,
+    tipo: string,
+    referencia_id?: number,
+    referencia_tipo?: string,
+  ) {
+    const superAdmin = await this.prisma.usuarios.findFirst({
+      where: { roles: { nombre: ROLES.SUPER_ADMIN } },
+      select: { id_usuario: true },
+    });
+
+    if (!superAdmin) return;
+
+    const notificacion = await this.prisma.notificaciones.create({
+      data: {
+        titulo,
+        mensaje,
+        tipo,
+        id_usuario_destino: superAdmin.id_usuario,
+        referencia_id: referencia_id ?? null,
+        referencia_tipo: referencia_tipo ?? null,
+      },
+    });
+
+    this.notificationsGateway.emitToUser(
+      superAdmin.id_usuario,
+      this.toDto(notificacion),
+    );
+  }
+
+  async crearDesdeContactoPublico(dto: ContactoPublicoDto) {
+    const titulo = `Nuevo mensaje de contacto: ${dto.asunto}`;
+    const mensaje = `${dto.nombre} (${dto.email}) escribió:\n\n${dto.mensaje}`;
+    await this.crearParaSuperAdmin(titulo, mensaje, 'contacto_publico');
+    return { message: 'Mensaje recibido.' };
   }
 
   private async assertSameClinic(

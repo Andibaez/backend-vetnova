@@ -22,6 +22,7 @@ const mockPrisma = {
   usuarios: {
     findUnique: jest.fn(),
     findMany: jest.fn(),
+    findFirst: jest.fn(),
   },
 };
 
@@ -31,6 +32,14 @@ const clienteUser = {
   name: 'Cliente',
   email: 'cliente@test.com',
   clinicaId: 1,
+};
+
+const superAdminUser = {
+  sub: 1,
+  role: ROLES.SUPER_ADMIN,
+  name: 'Super Admin',
+  email: 'super@test.com',
+  clinicaId: null,
 };
 
 describe('NotificacionesService', () => {
@@ -190,6 +199,96 @@ describe('NotificacionesService', () => {
           id_usuario_origen: 2,
         }),
       ],
+    });
+  });
+
+  it('el SuperAdministrador lista notificaciones sin filtrar por clínica', async () => {
+    mockPrisma.notificaciones.findMany.mockResolvedValue([]);
+
+    await service.findAll(superAdminUser, true);
+
+    expect(mockPrisma.notificaciones.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id_usuario_destino: 1,
+          leida: false,
+        },
+      }),
+    );
+  });
+
+  it('crea una notificación para el SuperAdministrador y emite el evento', async () => {
+    mockPrisma.usuarios.findFirst.mockResolvedValue({ id_usuario: 1 });
+    mockPrisma.notificaciones.create.mockResolvedValue({
+      id_notificacion: 5,
+      titulo: 'Título',
+      mensaje: 'Mensaje',
+      tipo: 'contacto_publico',
+      leida: false,
+      created_at: new Date(),
+    });
+
+    await service.crearParaSuperAdmin('Título', 'Mensaje', 'contacto_publico');
+
+    expect(mockPrisma.usuarios.findFirst).toHaveBeenCalledWith({
+      where: { roles: { nombre: ROLES.SUPER_ADMIN } },
+      select: { id_usuario: true },
+    });
+    expect(mockPrisma.notificaciones.create).toHaveBeenCalledWith({
+      data: {
+        titulo: 'Título',
+        mensaje: 'Mensaje',
+        tipo: 'contacto_publico',
+        id_usuario_destino: 1,
+        referencia_id: null,
+        referencia_tipo: null,
+      },
+    });
+    expect(mockGateway.emitToUser).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({ titulo: 'Título', tipo: 'contacto_publico' }),
+    );
+  });
+
+  it('no falla si no existe un SuperAdministrador configurado', async () => {
+    mockPrisma.usuarios.findFirst.mockResolvedValue(null);
+
+    await service.crearParaSuperAdmin('Título', 'Mensaje', 'contacto_publico');
+
+    expect(mockPrisma.notificaciones.create).not.toHaveBeenCalled();
+    expect(mockGateway.emitToUser).not.toHaveBeenCalled();
+  });
+
+  it('crearDesdeContactoPublico arma el título y mensaje a partir del formulario', async () => {
+    mockPrisma.usuarios.findFirst.mockResolvedValue({ id_usuario: 1 });
+    mockPrisma.notificaciones.create.mockResolvedValue({
+      id_notificacion: 5,
+      titulo: 'Nuevo mensaje de contacto: Consulta general',
+      mensaje:
+        'Lorena (lorena@test.com) escribió:\n\nHola, tengo una pregunta.',
+      tipo: 'contacto_publico',
+      leida: false,
+      created_at: new Date(),
+    });
+
+    const resultado = await service.crearDesdeContactoPublico({
+      nombre: 'Lorena',
+      email: 'lorena@test.com',
+      asunto: 'Consulta general',
+      mensaje: 'Hola, tengo una pregunta.',
+    });
+
+    expect(resultado).toEqual({ message: 'Mensaje recibido.' });
+    expect(mockPrisma.notificaciones.create).toHaveBeenCalledWith({
+      data: {
+        titulo: 'Nuevo mensaje de contacto: Consulta general',
+        mensaje:
+          'Lorena (lorena@test.com) escribió:\n\nHola, tengo una pregunta.',
+        tipo: 'contacto_publico',
+        id_usuario_destino: 1,
+        referencia_id: null,
+        referencia_tipo: null,
+      },
     });
   });
 });

@@ -9,6 +9,7 @@ const mockService = {
   marcarTodasLeidas: jest.fn(),
   marcarLeida: jest.fn(),
   remove: jest.fn(),
+  crearDesdeContactoPublico: jest.fn(),
 };
 
 const user = {
@@ -62,5 +63,21 @@ describe('NotificacionesController', () => {
     await controller.remove(9, user);
 
     expect(mockService.remove).toHaveBeenCalledWith(9, user);
+  });
+
+  it('expone POST /notificaciones/contacto sin autenticación', async () => {
+    const dto = {
+      nombre: 'Lorena',
+      email: 'lorena@test.com',
+      asunto: 'Consulta general',
+      mensaje: 'Hola, tengo una pregunta.',
+    };
+    mockService.crearDesdeContactoPublico.mockReturnValue({
+      message: 'Mensaje recibido.',
+    });
+
+    await controller.crearDesdeContactoPublico(dto);
+
+    expect(mockService.crearDesdeContactoPublico).toHaveBeenCalledWith(dto);
   });
 });
